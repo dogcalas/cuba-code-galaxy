@@ -86,6 +86,49 @@ export default {
       return json(results);
     }
 
+    // ── POST /api/approve — approve a submission (admin, secret-protected) ──
+    if (url.pathname === '/api/approve' && request.method === 'POST') {
+      const body = await request.json();
+      const { id, admin_key } = body;
+      if (!admin_key || admin_key !== env.ADMIN_KEY) return json({ error: 'Unauthorized' }, 401);
+      if (!id) return json({ error: 'id required' }, 400);
+
+      const sub = await env.DB.prepare('SELECT * FROM submissions WHERE id = ?').bind(id).first();
+      if (!sub) return json({ error: 'Submission not found' }, 404);
+
+      // Fetch repo info from GitHub
+      const repoPath = sub.repo_url.replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, '');
+      try {
+        const ghHeaders = { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'CubaCodeGalaxy/1.0' };
+        if (env.GITHUB_TOKEN) ghHeaders['Authorization'] = `Bearer ${env.GITHUB_TOKEN}`;
+        const ghRes = await fetch(`https://api.github.com/repos/${repoPath}`, { headers: ghHeaders });
+        if (!ghRes.ok) return json({ error: 'GitHub repo not found: ' + repoPath }, 404);
+        const repo = await ghRes.json();
+
+        await env.DB.prepare(
+          'INSERT OR IGNORE INTO repos (repo, lang, stars, forks, pushed, description) VALUES (?, ?, ?, ?, ?, ?)'
+        ).bind(
+          repo.full_name, repo.language || 'Unknown', repo.stargazers_count,
+          repo.forks_count, (repo.pushed_at || '').slice(0, 10), repo.description || ''
+        ).run();
+
+        await env.DB.prepare("UPDATE submissions SET status = 'approved' WHERE id = ?").bind(id).run();
+        return json({ ok: true, repo: repo.full_name });
+      } catch (e) {
+        return json({ error: e.message }, 500);
+      }
+    }
+
+    // ── POST /api/reject — reject a submission (admin) ──
+    if (url.pathname === '/api/reject' && request.method === 'POST') {
+      const body = await request.json();
+      const { id, admin_key } = body;
+      if (!admin_key || admin_key !== env.ADMIN_KEY) return json({ error: 'Unauthorized' }, 401);
+      if (!id) return json({ error: 'id required' }, 400);
+      await env.DB.prepare("UPDATE submissions SET status = 'rejected' WHERE id = ?").bind(id).run();
+      return json({ ok: true });
+    }
+
     // ── POST /api/scan — Scan all known Cuban devs for new repos ──
     if (url.pathname === '/api/scan' && request.method === 'POST') {
       const result = await scanCubanDevs(env);
