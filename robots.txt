@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://cuba-code-galaxy.pages.dev/sitemap.xml
+Sitemap: https://galaxy.datalis.dev/sitemap.xml
