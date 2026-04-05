@@ -548,11 +548,25 @@ const planetBumpTex = (function(){
   const t=new THREE.CanvasTexture(cv); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.needsUpdate=true; return t;
 })();
 
+// ── Load data: try API first, fallback to static cuba-data.js ────────────────
+setLd('Cargando datos…', 30);
+const API_URL = 'https://cuba-code-galaxy-api.dogcalas.workers.dev';
+let repos, devs;
+try {
+  const [reposRes, devsRes] = await Promise.all([
+    fetch(API_URL + '/api/repos').then(r => r.ok ? r.json() : null),
+    fetch(API_URL + '/api/devs').then(r => r.ok ? r.json() : null),
+  ]);
+  repos = reposRes && reposRes.length > 0 ? reposRes : (window.CUBA_REPOS || []);
+  devs  = devsRes  && devsRes.length  > 0 ? devsRes  : (window.CUBAN_DEVS  || []);
+} catch(e) {
+  repos = window.CUBA_REPOS || [];
+  devs  = window.CUBAN_DEVS || [];
+}
+
 // ── Build galaxy ──────────────────────────────────────────────────────────────
 setLd('Construyendo sistema solar…', 35);
 
-const repos  = window.CUBA_REPOS   || [];
-const devs   = window.CUBAN_DEVS   || [];
 const LCOLS  = window.LANGUAGE_COLORS || {};
 const PPALS  = window.PLANET_PALETTES || {};
 
