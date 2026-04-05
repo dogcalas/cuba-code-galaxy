@@ -451,9 +451,10 @@ controls.maxDistance = 2500; controls.minDistance = 0.5;
 controls.panSpeed = 0.8; controls.zoomSpeed = 0.9;
 
 // ── Lights ───────────────────────────────────────────────────────────────────
-scene.add(new THREE.AmbientLight(0x223355, 1.6));
-const dL = new THREE.DirectionalLight(0xffffff, 1.0); dL.position.set(200,300,200); scene.add(dL);
-const rL = new THREE.DirectionalLight(0x56d4f7, 0.35); rL.position.set(-200,-100,-200); scene.add(rL);
+scene.add(new THREE.AmbientLight(0x445577, 3.5));
+const dL = new THREE.DirectionalLight(0xffffff, 1.5); dL.position.set(300,400,300); scene.add(dL);
+const rL = new THREE.DirectionalLight(0x56d4f7, 0.8); rL.position.set(-300,-200,-300); scene.add(rL);
+const fL = new THREE.DirectionalLight(0xf7a556, 0.4); fL.position.set(0,-300,200); scene.add(fL);
 
 // ── Starfield (ShaderMaterial — no square artefacts) ─────────────────────────
 setLd('Generando estrellas…', 18);
@@ -741,7 +742,7 @@ for(let li=0; li<langs.length; li++){
   lSpr.scale.set(38,14,1); scene.add(lSpr);
 
   // Point light
-  const pL = new THREE.PointLight(sCol, 0.7, sSize*28); pL.position.set(sPos.x,sPos.y,sPos.z); scene.add(pL);
+  const pL = new THREE.PointLight(sCol, 1.2, sSize*50+100); pL.position.set(sPos.x,sPos.y,sPos.z); scene.add(pL);
 
   // ─ Sort repos by importance: most stars+forks first (closer to sun) ─
   const sorted = [...lRepos].sort((a,b) => (b.stars + b.forks*0.5) - (a.stars + a.forks*0.5));
@@ -789,7 +790,7 @@ for(let li=0; li<langs.length; li++){
     const pGeo = getSphereGeo(pSize);
     const pMat = new THREE.MeshStandardMaterial({
       color: pCol, emissive: pCol,
-      emissiveIntensity: 0.08 + (repo.stars/800)*0.4,
+      emissiveIntensity: 0.35 + (repo.stars/400)*0.3,
       roughness: 0.35 + Math.random()*.2,
       metalness: 0.15 + Math.random()*.2,
       bumpMap: planetBumpTex,
@@ -809,14 +810,14 @@ for(let li=0; li<langs.length; li++){
     pMesh.position.set(sPos.x+rx2, sPos.y+ry3, sPos.z+rz3);
     scene.add(pMesh);
 
-    // Orbit ring — only for the 5 closest planets (inner system)
-    if(pi < 5) {
-      const ring = makeOrbitRing(orbitRadius, sHex, sysTiltX, sysTiltZ);
-      ring.position.set(sPos.x, sPos.y, sPos.z);
-      scene.add(ring);
-      orbitRingMeshes.push(ring);
-      orbitRingSunIdx.push(li);
-    }
+    // Orbit ring — all planets get lines, outer ones more transparent
+    const ringOpacity = pi < 5 ? 0.25 : 0.10;
+    const ring = makeOrbitRing(orbitRadius, sHex, sysTiltX, sysTiltZ);
+    ring.material.opacity = ringOpacity;
+    ring.position.set(sPos.x, sPos.y, sPos.z);
+    scene.add(ring);
+    orbitRingMeshes.push(ring);
+    orbitRingSunIdx.push(li);
 
     // Saturn rings for top 2
     if(topRingedRepos.has(repo.repo)) {
