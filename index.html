@@ -969,24 +969,18 @@ function focusSolarSystem(lang) {
   const sunMesh = sunMeshes[idx];
   const sunPos  = sunMesh.position.clone();
 
-  // Compute bounding radius of this system (max orbit radius of its planets)
-  let maxOrbit = 30;
+  // Find the closest planet's orbit radius in this system
+  let firstOrbitR = 30;
   for(const o of orbits){
-    if(planetData[orbits.indexOf(o)]?.lang === lang){
-      maxOrbit = Math.max(maxOrbit, o.orbitRadius);
+    if(o.sunPos.distanceTo(sunPos) < 5){
+      firstOrbitR = Math.min(firstOrbitR, o.orbitRadius);
     }
   }
-  // Also scan by sun position proximity
-  let maxR = 30;
-  for(const o of orbits){
-    if(o.sunPos.distanceTo(sunPos) < 5) maxR = Math.max(maxR, o.orbitRadius);
-  }
 
-  // Fly camera to frame the inner ~40% of the system — star + closest planets visible
-  const innerOrbitR = Math.min(maxR * 0.45, maxR);  // show inner planets
+  // Fly camera just far enough to see the star + its closest planet
   const sR = sunSize(byLang[lang].length);
-  const viewDist = Math.max(innerOrbitR, sR * 4) + 12;
-  const targetCamPos = sunPos.clone().add(new THREE.Vector3(viewDist * 0.25, viewDist * 0.55, viewDist * 0.65));
+  const viewDist = firstOrbitR + sR + 5;
+  const targetCamPos = sunPos.clone().add(new THREE.Vector3(viewDist * 0.2, viewDist * 0.5, viewDist * 0.6));
 
   // Animate smoothly via damped lerp over ~60 frames
   const startPos    = camera.position.clone();
