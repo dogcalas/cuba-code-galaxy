@@ -443,7 +443,7 @@ cc.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth/window.innerHeight, 0.5, 12000);
-camera.position.set(0, 280, 380);
+camera.position.set(0, 350, 500);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.dampingFactor = 0.06;
@@ -609,8 +609,8 @@ function galaxyDisc(n, R) {
   return pts;
 }
 
-// Galaxy radius — proportional to system count
-const GALAXY_R = Math.max(250, langs.length * 30);
+// Galaxy radius — scales with sqrt to avoid explosion with many languages
+const GALAXY_R = Math.max(250, 120 + Math.sqrt(langs.length) * 55);
 const sunPositions = galaxyDisc(langs.length, GALAXY_R);
 
 // Shared geo cache
@@ -757,9 +757,10 @@ for(let li=0; li<langs.length; li++){
   // ── Titius-Bode orbit distances — like a real solar system ────────────
   // Inner planets are packed close, outer ones spread exponentially.
   // Formula: r_n = base + scale * (0 + 3·2^n) mirroring the real Titius-Bode law.
-  const base    = sSize * 1.8 + 4;
-  const scale   = sSize * 0.3 + 2.5;
-  const MIN_GAP = 3.5;
+  const base    = sSize * 1.5 + 3;
+  const scale   = sSize * 0.2 + 1.5;
+  const MAX_ORBIT = 80;  // cap max orbit radius per system
+  const MIN_GAP = 2.5;
   const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
   // ONE tilt for the entire system — each solar system has its own ecliptic
@@ -773,9 +774,9 @@ for(let li=0; li<langs.length; li++){
     const repo = sorted[pi];
     const pSize = planetSize(repo.stars, repo.forks);
 
-    // Titius-Bode: r = base + scale * (0.3 + 0.3 * 2^pi)
-    // Gives: ~base+0.18s, base+0.36s, base+0.72s, base+1.44s, base+2.88s …
-    const titiusR = base + scale * (0.3 + 0.3 * Math.pow(1.7, pi));
+    // Titius-Bode capped: logarithmic growth so many planets don't explode
+    const t = sorted.length > 1 ? pi / (sorted.length - 1) : 0;
+    const titiusR = base + (MAX_ORBIT - base) * (Math.pow(t, 0.6));  // power curve, inner packed
     const minR    = prevRadius + prevPlanetR + pSize + MIN_GAP;
     const orbitRadius = Math.max(titiusR, minR);
     prevRadius  = orbitRadius;
@@ -808,12 +809,14 @@ for(let li=0; li<langs.length; li++){
     pMesh.position.set(sPos.x+rx2, sPos.y+ry3, sPos.z+rz3);
     scene.add(pMesh);
 
-    // Orbit ring on the same tilted plane
-    const ring = makeOrbitRing(orbitRadius, sHex, sysTiltX, sysTiltZ);
-    ring.position.set(sPos.x, sPos.y, sPos.z);
-    scene.add(ring);
-    orbitRingMeshes.push(ring);
-    orbitRingSunIdx.push(li);
+    // Orbit ring — only for the 5 closest planets (inner system)
+    if(pi < 5) {
+      const ring = makeOrbitRing(orbitRadius, sHex, sysTiltX, sysTiltZ);
+      ring.position.set(sPos.x, sPos.y, sPos.z);
+      scene.add(ring);
+      orbitRingMeshes.push(ring);
+      orbitRingSunIdx.push(li);
+    }
 
     // Saturn rings for top 2
     if(topRingedRepos.has(repo.repo)) {
@@ -1366,7 +1369,7 @@ document.addEventListener('click',e=>{ if(!e.target.closest('#srch')&&!e.target.
 // ── Keyboard ──────────────────────────────────────────────────────────────────
 document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT') return;
-  if(e.key==='f'||e.key==='F'){ controls.target.set(0,0,0); camera.position.set(0,280,380); }
+  if(e.key==='f'||e.key==='F'){ controls.target.set(0,0,0); camera.position.set(0,350,500); }
   if(e.key==='Escape'){ closeAllPanels(); sresEl.style.display='none'; }
 });
 
