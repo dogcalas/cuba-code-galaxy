@@ -437,8 +437,7 @@ const cc = document.getElementById('cc');
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.1;
+renderer.toneMapping = THREE.NoToneMapping;
 cc.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -725,7 +724,7 @@ for(let li=0; li<langs.length; li++){
 
   // ─ Sun ─
   const sGeo = new THREE.SphereGeometry(sSize,24,20);
-  const sMat = new THREE.MeshStandardMaterial({color:sCol,emissive:sCol,emissiveIntensity:2.0,roughness:.2,metalness:0});
+  const sMat = new THREE.MeshBasicMaterial({ color: sCol });
   const sMesh = new THREE.Mesh(sGeo, sMat);
   sMesh.position.set(sPos.x, sPos.y, sPos.z);
   scene.add(sMesh);
@@ -744,8 +743,9 @@ for(let li=0; li<langs.length; li++){
   // Point light
   const pL = new THREE.PointLight(sCol, 1.2, sSize*50+100); pL.position.set(sPos.x,sPos.y,sPos.z); scene.add(pL);
 
-  // ─ Sort repos by importance: most stars+forks first (closer to sun) ─
-  const sorted = [...lRepos].sort((a,b) => (b.stars + b.forks*0.5) - (a.stars + a.forks*0.5));
+  // ─ Sort repos by importance, cap at 20 per language to keep systems compact ─
+  const MAX_PLANETS = 20;
+  const sorted = [...lRepos].sort((a,b) => (b.stars + b.forks*0.5) - (a.stars + a.forks*0.5)).slice(0, MAX_PLANETS);
 
   // Top-2 repos by stars+forks get Saturn rings (exclusive distinction)
   const topRingedRepos = new Set(
@@ -788,12 +788,7 @@ for(let li=0; li<langs.length; li++){
     const pCol = hex2rgb(pHex);
 
     const pGeo = getSphereGeo(pSize);
-    const pMat = new THREE.MeshStandardMaterial({
-      color: pCol, emissive: pCol,
-      emissiveIntensity: 0.7 + Math.min(repo.stars/200, 0.5),
-      roughness: 0.4,
-      metalness: 0.1,
-    });
+    const pMat = new THREE.MeshBasicMaterial({ color: pCol });
     const pMesh = new THREE.Mesh(pGeo, pMat);
 
     const initAngle = pi * GOLDEN_ANGLE;
@@ -1466,7 +1461,8 @@ function animate() {
 
   // Sun pulse
   for(let i=0;i<sunMeshes.length;i++){
-    sunMeshes[i].material.emissiveIntensity = 1.1 + Math.sin(t*0.75+i*0.6)*0.3;
+    const pulse = 0.85 + Math.sin(t*0.75+i*0.6)*0.15;
+    sunMeshes[i].material.color.copy(hex2rgb(sunData[i].color)).multiplyScalar(pulse);
   }
 
   controls.update();
