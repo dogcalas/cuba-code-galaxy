@@ -565,10 +565,11 @@ try {
 }
 
 // ── Build galaxy ──────────────────────────────────────────────────────────────
-setLd('Construyendo sistema solar…', 35);
+setLd('Construyendo galaxia…', 35);
 
 const LCOLS  = window.LANGUAGE_COLORS || {};
 const PPALS  = window.PLANET_PALETTES || {};
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
 // Group by language
 const byLang = {};
@@ -588,66 +589,37 @@ document.getElementById('st-d').textContent = devs.length;
 const planetMeshes=[], planetData=[];
 const sunMeshes=[], sunData=[];
 const devMeshes=[], devData=[];
-const orbits=[]; // planet orbits
-const orbitRingMeshes=[], orbitRingSunIdx=[]; // orbit line meshes → sunIdx
+const orbits=[];
+const orbitRingMeshes=[], orbitRingSunIdx=[];
+// Galaxy centers per language (for focusGalaxy)
+const galaxyCenters={};
 
-// Sun size — proportional to repo count (bigger language = bigger sun)
-function sunSize(n){ return 2.5 + Math.log(n+1) * 2.0; }
-// Planet size based on stars+forks
-function planetSize(stars,forks){ return Math.min(0.65 + Math.log(Math.max(stars+forks*.5,1)+1)*1.05, 6.2); }
+// ── Sizing functions ─────────────────────────────────────────────────────────
+function sunSize(n){ return 1.8 + Math.log(n+1) * 1.0; } // owner sun (smaller)
+function galaxyNucleusSize(n){ return 3 + Math.log(n+1) * 2.5; } // language nucleus (bigger)
+function planetSize(s,f){ return Math.min(0.5 + Math.log(Math.max(s+f*.5,1)+1)*0.8, 4.5); }
 
-// ── Galaxy disc layout — suns in a flat disc with spiral-arm feel ─────────────
-function galaxyDisc(n, R) {
-  const pts=[], phi=(1+Math.sqrt(5))/2;
-  for(let i=0;i<n;i++){
-    // Fermat spiral: gives natural spacing with golden angle
-    const r = R * 0.3 + R * 0.7 * Math.sqrt((i+1)/n);  // denser center, spread outward
-    const th = 2 * Math.PI * i / phi;
-    const y = (Math.random()-.5) * R * 0.06;  // thin disc — very small vertical scatter
-    pts.push({ x: r*Math.cos(th), y, z: r*Math.sin(th) });
-  }
-  return pts;
-}
-
-// Galaxy radius — scales with sqrt to avoid explosion with many languages
-const GALAXY_R = Math.max(250, 120 + Math.sqrt(langs.length) * 55);
-const sunPositions = galaxyDisc(langs.length, GALAXY_R);
-
-// Shared geo cache
+// ── Geometry cache ───────────────────────────────────────────────────────────
 const geoCache={};
-function getSphereGeo(r){
-  const k=r.toFixed(2);
-  return geoCache[k] || (geoCache[k]=new THREE.SphereGeometry(r,18,14));
-}
+function getSphereGeo(r){ const k=r.toFixed(2); return geoCache[k]||(geoCache[k]=new THREE.SphereGeometry(r,16,12)); }
 
-// ── Orbit ring (visible, colored to language) ─────────────────────────────────
-function makeOrbitRing(radius, color, tiltX, tiltZ) {
-  // Build ring points in the tilted orbit plane so it EXACTLY matches planet motion.
-  // Planet motion uses: rotate by tiltZ around Z first, then tiltX around X.
-  // We generate the ring points already in world-space (relative to sun center).
-  const pts = [], N = 128;
-  const cosX = Math.cos(tiltX), sinX = Math.sin(tiltX);
-  const cosZ = Math.cos(tiltZ), sinZ = Math.sin(tiltZ);
-  for(let i = 0; i <= N; i++){
-    const a  = i / N * Math.PI * 2;
-    const lx = Math.cos(a) * radius;
-    const ly = 0;
-    const lz = Math.sin(a) * radius;
-    // apply tiltZ (around Z)
-    const rx2 = lx * cosZ - ly * sinZ;
-    const ry2 = lx * sinZ + ly * cosZ;
-    // apply tiltX (around X)
-    const ry3 = ry2 * cosX - lz * sinX;
-    const rz3 = ry2 * sinX + lz * cosX;
-    pts.push(new THREE.Vector3(rx2, ry3, rz3));
+// ── Elliptical orbit ring — Kepler-realistic ─────────────────────────────────
+function makeEllipseRing(a, ecc, color, tiltX, tiltZ) {
+  const b = a * Math.sqrt(1 - ecc*ecc); // semieje menor
+  const pts=[], N=96;
+  const cosX=Math.cos(tiltX),sinX=Math.sin(tiltX),cosZ=Math.cos(tiltZ),sinZ=Math.sin(tiltZ);
+  for(let i=0;i<=N;i++){
+    const ang=i/N*Math.PI*2;
+    const lx=Math.cos(ang)*a, lz=Math.sin(ang)*b;
+    const rx2=lx*cosZ, ry2=lx*sinZ;
+    const ry3=ry2*cosX-lz*sinX, rz3=ry2*sinX+lz*cosX;
+    pts.push(new THREE.Vector3(rx2,ry3,rz3));
   }
-  const geo = new THREE.BufferGeometry().setFromPoints(pts);
-  return new THREE.Line(geo, new THREE.LineBasicMaterial({
-    color: new THREE.Color(color), transparent: true, opacity: 0.25, depthWrite: false
-  }));
+  return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color:new THREE.Color(color),transparent:true,opacity:0.18,depthWrite:false}));
 }
 
-// ── Badge categories ──────────────────────────────────────────────────────────
+// ── Badge categories ─────────────────────────────────────────────────────────
 function getBadges(repo) {
   const b=[];
   if(repo.stars >= 50)  b.push({label:'★ TOP',color:'#ffd700'});
@@ -659,184 +631,233 @@ function getBadges(repo) {
   return b;
 }
 
-// ── Planet ring (Saturn-like) for notable planets ─────────────────────────────
+// ── Saturn ring ──────────────────────────────────────────────────────────────
 function makePlanetRing(radius, color) {
   const geo = new THREE.RingGeometry(radius*1.5, radius*2.6, 64);
   const mat = new THREE.MeshBasicMaterial({color:new THREE.Color(color), side:THREE.DoubleSide, transparent:true, opacity:0.35, depthWrite:false});
   const ring = new THREE.Mesh(geo, mat);
   ring.rotation.x = Math.PI/2 + (Math.random()-.5)*.4;
-  ring.rotation.z = (Math.random()-.5)*.3;
   return ring;
 }
 
-// ── Moon satellites = owner del repo (tamaño por followers) ─────────────────
-const moonOrbits=[];
-const moonMeshes=[], moonData=[];
+// ── Moon satellites ──────────────────────────────────────────────────────────
+const moonOrbits=[], moonMeshes=[], moonData=[];
 
-function makeMoon(parentPosFn, parentRadius, repoName) {
-  const OWNERS = window.REPO_OWNER_MAP || {};
-  const PROFS  = window.USER_PROFILES  || {};
-  const login  = OWNERS[repoName];
-  const prof   = login ? (PROFS[login] || null) : null;
-
-  // Moon size: proportional to owner followers (0.25 .. 1.8)
-  const followers = prof ? prof.followers : 2;
-  const mSize = 0.22 + Math.min(Math.log(followers + 1) * 0.19, 1.6);
-
-  const mGeo  = new THREE.SphereGeometry(mSize, 14, 10);
-  const mColor = prof ? hex2rgb(prof.color) : new THREE.Color(0x88aacc);
-  const mMat  = new THREE.MeshStandardMaterial({
-    color: mColor, emissive: mColor, emissiveIntensity: 0.28,
-    roughness: 0.55, metalness: 0.12,
-  });
-  const mMesh = new THREE.Mesh(mGeo, mMat);
-  const mOrbitR = parentRadius * 2.1 + 1.2;
-  const mAngle  = Math.random() * Math.PI * 2;
-  const initPos = parentPosFn();
-  mMesh.position.copy(initPos).add(new THREE.Vector3(Math.cos(mAngle)*mOrbitR, 0, Math.sin(mAngle)*mOrbitR));
-  scene.add(mMesh);
-
-  moonOrbits.push({
-    mesh: mMesh,
-    centerFn: parentPosFn,   // function → always follows the planet
-    r: mOrbitR,
-    angle: mAngle,
-    speed: 0.018 + Math.random() * 0.014,
-    tilt: (Math.random()-.5) * 0.6,
-    sunIdx: -1,  // filled after creation by caller
-  });
-  moonMeshes.push(mMesh);
-  moonData.push({ login: login||'?', prof, repoName });
-  return mMesh;
+// ── Galaxy disc for language clusters ────────────────────────────────────────
+const GALAXY_R = Math.max(300, 150 + Math.sqrt(langs.length) * 60);
+function galaxyDisc(n, R) {
+  const pts=[], phi=(1+Math.sqrt(5))/2;
+  for(let i=0;i<n;i++){
+    const r = R * 0.25 + R * 0.75 * Math.sqrt((i+1)/n);
+    const th = 2 * Math.PI * i / phi;
+    const y = (Math.random()-.5) * R * 0.04;
+    pts.push({x:r*Math.cos(th), y, z:r*Math.sin(th)});
+  }
+  return pts;
 }
+const langPositions = galaxyDisc(langs.length, GALAXY_R);
 
-// ── Build each solar system ───────────────────────────────────────────────────
-setLd('Posicionando planetas…', 50);
+// ══════════════════════════════════════════════════════════════════════════════
+// ██  BUILD MULTI-SCALE GALAXY: each language = a galaxy cluster             ██
+// ══════════════════════════════════════════════════════════════════════════════
+setLd('Posicionando sistemas…', 50);
+
+let globalSunIdx = 0; // global index into sunMeshes for pause tracking
 
 for(let li=0; li<langs.length; li++){
   const lang = langs[li];
   const lRepos = byLang[lang];
-  const sPos = sunPositions[li];
+  const gCenter = langPositions[li]; // galaxy cluster center
   const sCol = hex2rgb(LCOLS[lang] || '#888');
   const sHex = LCOLS[lang] || '#888';
-  const sSize = sunSize(lRepos.length);
   const pal = PPALS[lang] || ['#aaaaaa'];
 
-  // ─ Sun ─
-  const sGeo = new THREE.SphereGeometry(sSize,24,20);
-  const sMat = new THREE.MeshBasicMaterial({ color: sCol });
-  const sMesh = new THREE.Mesh(sGeo, sMat);
-  sMesh.position.set(sPos.x, sPos.y, sPos.z);
-  scene.add(sMesh);
-  sunMeshes.push(sMesh); sunData.push({lang, count:lRepos.length, color:sHex});
+  galaxyCenters[lang] = new THREE.Vector3(gCenter.x, gCenter.y, gCenter.z);
 
-  // Glow sprite
-  const gMat = new THREE.SpriteMaterial({map:makeGlow(sCol),transparent:true,opacity:.55,depthWrite:false,blending:THREE.AdditiveBlending});
-  const gSpr = new THREE.Sprite(gMat); gSpr.scale.setScalar(sSize*5.5);
-  gSpr.position.set(sPos.x, sPos.y, sPos.z); scene.add(gSpr);
+  // ── Galaxy nucleus: bright glow marking this language cluster ──
+  const nucSize = galaxyNucleusSize(lRepos.length);
+  const nucGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: makeGlow(sCol), transparent:true, opacity:0.4, depthWrite:false, blending:THREE.AdditiveBlending
+  }));
+  nucGlow.scale.setScalar(nucSize * 6);
+  nucGlow.position.set(gCenter.x, gCenter.y, gCenter.z);
+  scene.add(nucGlow);
 
-  // Label
+  // Label for the galaxy cluster
   const lSpr = makeLabel(lang, sHex);
-  lSpr.position.set(sPos.x, sPos.y+sSize+7, sPos.z);
-  lSpr.scale.set(38,14,1); scene.add(lSpr);
+  lSpr.position.set(gCenter.x, gCenter.y + nucSize + 8, gCenter.z);
+  lSpr.scale.set(40, 15, 1);
+  scene.add(lSpr);
 
-  // Point light
-  const pL = new THREE.PointLight(sCol, 1.2, sSize*50+100); pL.position.set(sPos.x,sPos.y,sPos.z); scene.add(pL);
+  // ── Group repos by owner within this language ──
+  const byOwner = {};
+  for(const r of lRepos){
+    const owner = r.repo.split('/')[0];
+    (byOwner[owner] = byOwner[owner] || []).push(r);
+  }
+  const owners = Object.keys(byOwner).sort((a,b) => {
+    const sa = byOwner[b].reduce((s,r)=>s+r.stars,0);
+    const sb = byOwner[a].reduce((s,r)=>s+r.stars,0);
+    return sa - sb;
+  });
 
-  // ─ Sort repos by importance, cap at 20 per language to keep systems compact ─
-  const MAX_PLANETS = 20;
-  const sorted = [...lRepos].sort((a,b) => (b.stars + b.forks*0.5) - (a.stars + a.forks*0.5)).slice(0, MAX_PLANETS);
+  // Owners with 2+ repos → solar systems; 1 repo → loose planet around nucleus
+  const solarOwners = owners.filter(o => byOwner[o].length >= 2);
+  const looseRepos  = owners.filter(o => byOwner[o].length === 1).flatMap(o => byOwner[o]);
 
-  // Top-2 repos by stars+forks get Saturn rings (exclusive distinction)
-  const topRingedRepos = new Set(
-    [...lRepos]
-      .sort((a,b) => (b.stars + b.forks*0.5) - (a.stars + a.forks*0.5))
-      .slice(0, 2)
-      .map(r => r.repo)
-  );
+  // ── Distribute solar systems in a mini-disc around the galaxy center ──
+  const clusterR = Math.max(20, 8 + Math.sqrt(lRepos.length) * 5);
+  const solarPositions = solarOwners.map((_, i) => {
+    if(solarOwners.length === 1) return {x:0, y:0, z:0};
+    const r = clusterR * 0.3 + clusterR * 0.7 * Math.sqrt((i+1)/solarOwners.length);
+    const th = 2 * Math.PI * i / ((1+Math.sqrt(5))/2);
+    return {x:r*Math.cos(th), y:(Math.random()-.5)*2, z:r*Math.sin(th)};
+  });
 
-  // ── Titius-Bode orbit distances — like a real solar system ────────────
-  // Inner planets are packed close, outer ones spread exponentially.
-  // Formula: r_n = base + scale * (0 + 3·2^n) mirroring the real Titius-Bode law.
-  const base    = sSize * 1.5 + 3;
-  const scale   = sSize * 0.2 + 1.5;
-  const MAX_ORBIT = 80;  // cap max orbit radius per system
-  const MIN_GAP = 2.5;
-  const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+  // ── Build each solar system (owner = sun, repos = planets) ──
+  for(let si=0; si<solarOwners.length; si++){
+    const owner = solarOwners[si];
+    const ownerRepos = byOwner[owner].sort((a,b) => (b.stars+b.forks*.5) - (a.stars+a.forks*.5));
+    const sp = solarPositions[si];
+    const sunWorldX = gCenter.x + sp.x, sunWorldY = gCenter.y + sp.y, sunWorldZ = gCenter.z + sp.z;
+    const thisSunIdx = globalSunIdx++;
 
-  // ONE tilt for the entire system — each solar system has its own ecliptic
-  const sysTiltX = (Math.sin(li * 2.39996) * 0.5);   // ±0.5 rad (~±29°)
-  const sysTiltZ = (Math.cos(li * 3.88322) * 0.35);   // ±0.35 rad (~±20°)
+    // Sun = owner
+    const sSize = sunSize(ownerRepos.length);
+    const sMesh = new THREE.Mesh(getSphereGeo(sSize), new THREE.MeshBasicMaterial({color:sCol}));
+    sMesh.position.set(sunWorldX, sunWorldY, sunWorldZ);
+    scene.add(sMesh);
+    sunMeshes.push(sMesh);
+    sunData.push({lang, owner, count:ownerRepos.length, color:sHex, isOwnerSun:true});
 
-  let prevRadius = base - MIN_GAP;
-  let prevPlanetR = 0;
+    // Sun glow
+    const gSpr = new THREE.Sprite(new THREE.SpriteMaterial({map:makeGlow(sCol),transparent:true,opacity:0.45,depthWrite:false,blending:THREE.AdditiveBlending}));
+    gSpr.scale.setScalar(sSize*4);
+    gSpr.position.set(sunWorldX, sunWorldY, sunWorldZ);
+    scene.add(gSpr);
 
-  for(let pi = 0; pi < sorted.length; pi++){
-    const repo = sorted[pi];
-    const pSize = planetSize(repo.stars, repo.forks);
+    // Owner label (smaller than language label)
+    const olSpr = makeLabel(owner, sHex);
+    olSpr.position.set(sunWorldX, sunWorldY+sSize+4, sunWorldZ);
+    olSpr.scale.set(24, 9, 1);
+    scene.add(olSpr);
 
-    // Titius-Bode capped: logarithmic growth so many planets don't explode
-    const t = sorted.length > 1 ? pi / (sorted.length - 1) : 0;
-    const titiusR = base + (MAX_ORBIT - base) * (Math.pow(t, 0.6));  // power curve, inner packed
-    const minR    = prevRadius + prevPlanetR + pSize + MIN_GAP;
-    const orbitRadius = Math.max(titiusR, minR);
-    prevRadius  = orbitRadius;
-    prevPlanetR = pSize;
+    // Point light
+    const pL = new THREE.PointLight(sCol, 0.8, sSize*30+50);
+    pL.position.set(sunWorldX, sunWorldY, sunWorldZ);
+    scene.add(pL);
 
-    const palIdx = (planetData.length + pi) % pal.length;
-    const pHex = pal[palIdx];
-    const pCol = hex2rgb(pHex);
+    // System ecliptic tilt
+    const sysTiltX = Math.sin(thisSunIdx * 2.4) * 0.35;
+    const sysTiltZ = Math.cos(thisSunIdx * 3.9) * 0.25;
 
-    const pGeo = getSphereGeo(pSize);
-    const pMat = new THREE.MeshBasicMaterial({ color: pCol });
-    const pMesh = new THREE.Mesh(pGeo, pMat);
+    // ── Place planets with elliptical orbits (Titius-Bode) ──
+    const base = sSize * 1.5 + 2;
+    const MAX_ORBIT = 35;
+    let prevR = base - 2, prevPS = 0;
 
-    const initAngle = pi * GOLDEN_ANGLE;
-    const yOff = (Math.random()-.5) * 1.0;
+    for(let pi=0; pi<ownerRepos.length; pi++){
+      const repo = ownerRepos[pi];
+      const pSize = planetSize(repo.stars, repo.forks);
+      const t = ownerRepos.length > 1 ? pi/(ownerRepos.length-1) : 0;
+      const targetR = base + (MAX_ORBIT - base) * Math.pow(t, 0.55);
+      const orbitRadius = Math.max(targetR, prevR + prevPS + pSize + 2);
+      prevR = orbitRadius; prevPS = pSize;
 
-    // Position on the tilted ecliptic plane of this solar system
-    const lx = Math.cos(initAngle)*orbitRadius, lz = Math.sin(initAngle)*orbitRadius;
-    const cosX=Math.cos(sysTiltX), sinX=Math.sin(sysTiltX);
-    const cosZ=Math.cos(sysTiltZ), sinZ=Math.sin(sysTiltZ);
-    const rx2=lx*cosZ-yOff*sinZ, ry2=lx*sinZ+yOff*cosZ;
-    const ry3=ry2*cosX-lz*sinX,  rz3=ry2*sinX+lz*cosX;
-    pMesh.position.set(sPos.x+rx2, sPos.y+ry3, sPos.z+rz3);
-    scene.add(pMesh);
+      // Eccentricity: inner planets more circular, outer more elliptical
+      const ecc = 0.08 + t * 0.35;
 
-    // Orbit ring — all planets get lines, outer ones more transparent
-    const ringOpacity = pi < 5 ? 0.25 : 0.10;
-    const ring = makeOrbitRing(orbitRadius, sHex, sysTiltX, sysTiltZ);
-    ring.material.opacity = ringOpacity;
-    ring.position.set(sPos.x, sPos.y, sPos.z);
-    scene.add(ring);
-    orbitRingMeshes.push(ring);
-    orbitRingSunIdx.push(li);
+      const palIdx = (planetData.length + pi) % pal.length;
+      const pCol = hex2rgb(pal[palIdx]);
+      const pMesh = new THREE.Mesh(getSphereGeo(pSize), new THREE.MeshBasicMaterial({color:pCol}));
 
-    // Saturn rings for top 2
-    if(topRingedRepos.has(repo.repo)) {
-      const pRing = makePlanetRing(pSize, pHex);
-      pRing.position.copy(pMesh.position);
-      scene.add(pRing);
-      pMesh.userData.ring = pRing;
+      const initAngle = pi * GOLDEN_ANGLE;
+      const a = orbitRadius, b = a * Math.sqrt(1 - ecc*ecc);
+      // Elliptical position on tilted plane
+      const lx = Math.cos(initAngle)*a, lz = Math.sin(initAngle)*b;
+      const cosX=Math.cos(sysTiltX),sinX=Math.sin(sysTiltX),cosZ=Math.cos(sysTiltZ),sinZ=Math.sin(sysTiltZ);
+      const rx2=lx*cosZ, ry2=lx*sinZ, ry3=ry2*cosX-lz*sinX, rz3=ry2*sinX+lz*cosX;
+      pMesh.position.set(sunWorldX+rx2, sunWorldY+ry3, sunWorldZ+rz3);
+      scene.add(pMesh);
+
+      // Elliptical orbit ring
+      const ring = makeEllipseRing(a, ecc, sHex, sysTiltX, sysTiltZ);
+      ring.position.set(sunWorldX, sunWorldY, sunWorldZ);
+      scene.add(ring);
+      orbitRingMeshes.push(ring);
+      orbitRingSunIdx.push(thisSunIdx);
+
+      // Top repo gets Saturn ring
+      if(pi === 0 && repo.stars >= 5){
+        const pRing = makePlanetRing(pSize, pal[palIdx]);
+        pRing.position.copy(pMesh.position);
+        scene.add(pRing);
+        pMesh.userData.ring = pRing;
+      }
+
+      planetMeshes.push(pMesh);
+      planetData.push(repo);
+
+      const speed = 0.003 / Math.sqrt(orbitRadius / 15);
+      orbits.push({
+        planet:pMesh,
+        sunPos:new THREE.Vector3(sunWorldX,sunWorldY,sunWorldZ),
+        a, b, ecc,  // ellipse params
+        angle:initAngle, speed, yOff:0,
+        tiltX:sysTiltX, tiltZ:sysTiltZ,
+        sunIdx:thisSunIdx
+      });
     }
-
-    // Moon = owner (≥15 stars)
-    const OWNERS = window.REPO_OWNER_MAP || {};
-    if(OWNERS[repo.repo] && repo.stars >= 15) {
-      const capturedMesh = pMesh;
-      makeMoon(() => capturedMesh.position.clone(), pSize, repo.repo);
-      moonOrbits[moonOrbits.length - 1].sunIdx = li;
-    }
-
-    planetMeshes.push(pMesh);
-    planetData.push(repo);
-
-    // Kepler speed: inner planets orbit fast, outer slow
-    const speed = 0.004 / Math.sqrt(orbitRadius / 20);
-
-    orbits.push({ planet:pMesh, sunPos:new THREE.Vector3(sPos.x,sPos.y,sPos.z), orbitRadius, angle:initAngle, speed, yOff, tiltX:sysTiltX, tiltZ:sysTiltZ, sunIdx:li });
   }
 
+  // ── Loose repos (owners with 1 repo) → orbit the galaxy nucleus ──
+  if(looseRepos.length > 0){
+    const nucSunIdx = globalSunIdx++;
+    // No visible sun for loose repos — they orbit the galaxy nucleus glow
+    // But we need a sunMeshes entry for pause tracking
+    const phantomSun = new THREE.Mesh(getSphereGeo(0.01), new THREE.MeshBasicMaterial({visible:false}));
+    phantomSun.position.set(gCenter.x, gCenter.y, gCenter.z);
+    scene.add(phantomSun);
+    sunMeshes.push(phantomSun);
+    sunData.push({lang, owner:'__loose__', count:looseRepos.length, color:sHex, isOwnerSun:false});
+
+    const looseSorted = looseRepos.sort((a,b) => (b.stars+b.forks*.5) - (a.stars+a.forks*.5));
+    const looseBase = nucSize * 1.5 + 3;
+    const looseMax  = clusterR * 0.8;
+    let lpR = looseBase - 2, lpPS = 0;
+
+    for(let pi=0; pi<looseSorted.length; pi++){
+      const repo = looseSorted[pi];
+      const pSize = planetSize(repo.stars, repo.forks);
+      const t = looseSorted.length > 1 ? pi/(looseSorted.length-1) : 0;
+      const targetR = looseBase + (looseMax - looseBase) * Math.pow(t, 0.5);
+      const orbitR = Math.max(targetR, lpR + lpPS + pSize + 1.5);
+      lpR = orbitR; lpPS = pSize;
+
+      const ecc = 0.1 + t * 0.3;
+      const palIdx = (planetData.length + pi) % pal.length;
+      const pCol = hex2rgb(pal[palIdx]);
+      const pMesh = new THREE.Mesh(getSphereGeo(pSize), new THREE.MeshBasicMaterial({color:pCol}));
+
+      const angle = pi * GOLDEN_ANGLE;
+      const a = orbitR, b2 = a * Math.sqrt(1 - ecc*ecc);
+      pMesh.position.set(gCenter.x + Math.cos(angle)*a, gCenter.y, gCenter.z + Math.sin(angle)*b2);
+      scene.add(pMesh);
+
+      planetMeshes.push(pMesh);
+      planetData.push(repo);
+
+      const speed = 0.002 / Math.sqrt(orbitR / 10);
+      orbits.push({
+        planet:pMesh,
+        sunPos:new THREE.Vector3(gCenter.x, gCenter.y, gCenter.z),
+        a, b:b2, ecc,
+        angle, speed, yOff:0,
+        tiltX:0, tiltZ:0,
+        sunIdx:nucSunIdx
+      });
+    }
+  }
 }
 
 // ── Dev asteroids — tamaño escalado por importancia (followers + repos) ────────
@@ -974,24 +995,23 @@ for(const lang of langs){
 }
 
 function focusSolarSystem(lang) {
-  // Find the sun mesh for this language
-  const idx = sunData.findIndex(s => s.lang === lang);
-  if(idx < 0) return;
-  const sunMesh = sunMeshes[idx];
-  const sunPos  = sunMesh.position.clone();
+  // Fly to the galaxy cluster center for this language
+  const gc = galaxyCenters[lang];
+  if(!gc) return;
+  const sunPos = gc.clone();
 
-  // Find the closest planet's orbit radius in this system
-  let firstOrbitR = 30;
-  for(const o of orbits){
-    if(o.sunPos.distanceTo(sunPos) < 5){
-      firstOrbitR = Math.min(firstOrbitR, o.orbitRadius);
+  // Compute cluster radius: max distance of any sun in this language from center
+  let clusterR = 20;
+  for(let si=0;si<sunData.length;si++){
+    if(sunData[si].lang === lang && sunData[si].isOwnerSun){
+      const d = sunMeshes[si].position.distanceTo(gc);
+      clusterR = Math.max(clusterR, d + 15);
     }
   }
 
-  // Fly camera just far enough to see the star + its closest planet
-  const sR = sunSize(byLang[lang].length);
-  const viewDist = firstOrbitR + sR + 5;
-  const targetCamPos = sunPos.clone().add(new THREE.Vector3(viewDist * 0.2, viewDist * 0.5, viewDist * 0.6));
+  // Frame the cluster: see all solar systems in this language
+  const viewDist = clusterR * 1.1 + 15;
+  const targetCamPos = sunPos.clone().add(new THREE.Vector3(viewDist * 0.2, viewDist * 0.6, viewDist * 0.5));
 
   // Animate smoothly via damped lerp over ~60 frames
   const startPos    = camera.position.clone();
@@ -1395,17 +1415,17 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.05);
   t += dt;
 
-  // Planet orbits — tilted per-system ecliptic, pause on hover
+  // Planet orbits — elliptical Kepler on tilted ecliptic, pause on hover
   for(const o of orbits){
     const isPaused = pausedSunIdx >= 0 && o.sunIdx === pausedSunIdx;
     if(!isPaused) o.angle += o.speed;
 
-    // Orbit on the system's tilted ecliptic plane
-    const lx = Math.cos(o.angle)*o.orbitRadius, lz = Math.sin(o.angle)*o.orbitRadius;
+    // Elliptical orbit: a=semieje mayor, b=semieje menor
+    const lx = Math.cos(o.angle) * o.a, lz = Math.sin(o.angle) * o.b;
     const cosX=Math.cos(o.tiltX), sinX=Math.sin(o.tiltX);
     const cosZ=Math.cos(o.tiltZ), sinZ=Math.sin(o.tiltZ);
-    const rx2=lx*cosZ-o.yOff*sinZ, ry2=lx*sinZ+o.yOff*cosZ;
-    const ry3=ry2*cosX-lz*sinX,  rz3=ry2*sinX+lz*cosX;
+    const rx2=lx*cosZ, ry2=lx*sinZ;
+    const ry3=ry2*cosX-lz*sinX, rz3=ry2*sinX+lz*cosX;
     o.planet.position.set(o.sunPos.x+rx2, o.sunPos.y+ry3, o.sunPos.z+rz3);
     if(o.planet.userData.ring) o.planet.userData.ring.position.copy(o.planet.position);
   }
