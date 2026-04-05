@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Cuba Code Galaxy — Desarrolladores</title>
+<meta name="description" content="Galaxia 3D de desarrolladores cubanos. Cada dev es una estrella, sus repos orbitan como planetas."/>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<style>
+@font-face{font-family:'Orbitron';font-style:normal;font-weight:400 900;font-display:swap;src:url('https://fonts.gstatic.com/s/orbitron/v31/yMJMMIlzdpvBhQQL_SC3X9yhF25-T1nyGy6xpmIyXjU1pg.woff2') format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:300 600;font-display:swap;src:url('https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiJ-Ek-_EeA.woff2') format('woff2')}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#020408;--surface:rgba(255,255,255,0.04);--border:rgba(255,255,255,0.10);--text:#e8eaf0;--muted:#7a8090;--accent:#f7a556;--accent2:#56d4f7;--font-d:'Orbitron',monospace;--font-b:'Inter',system-ui,sans-serif;--blur:14px;--r:10px;--ease:cubic-bezier(0.16,1,0.3,1)}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-b);font-size:14px;-webkit-font-smoothing:antialiased}
+#bg-div{position:fixed;inset:0;background:var(--bg);z-index:0}
+#cc{position:fixed;inset:0;z-index:1}
+canvas{display:block;width:100%!important;height:100%!important}
+.panel{position:fixed;background:rgba(2,4,8,0.80);backdrop-filter:blur(var(--blur));border:1px solid var(--border);border-radius:var(--r);z-index:100}
+#hdr{top:16px;left:50%;transform:translateX(-50%);padding:10px 22px;display:flex;align-items:center;gap:12px;white-space:nowrap}
+.logo{width:32px;height:32px;flex-shrink:0}
+.hdr-t{font-family:var(--font-d);font-size:15px;font-weight:700;letter-spacing:.08em}
+.hdr-t span{color:var(--accent)}
+.hdr-s{font-size:10px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+#sbar{top:74px;left:50%;transform:translateX(-50%);padding:6px 18px;display:flex;gap:20px;align-items:center}
+.si{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:52px}
+.si .v{font-family:var(--font-d);font-size:14px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+.si .l{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.sdiv{width:1px;height:26px;background:var(--border)}
+#leg{bottom:22px;left:16px;padding:12px 14px;max-width:220px;max-height:320px;overflow-y:auto}
+#leg::-webkit-scrollbar{width:3px}
+#leg::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.lt{font-family:var(--font-d);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.li{display:flex;align-items:center;gap:7px;padding:4px 6px;cursor:pointer;border-radius:5px;transition:background .15s}
+.li:hover{background:rgba(255,255,255,.06)}
+.li.active{background:rgba(247,165,86,.10);box-shadow:inset 0 0 0 1px rgba(247,165,86,.25)}
+.ld{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.ln{font-size:10px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lc{font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums}
+#tt{position:fixed;pointer-events:none;z-index:200;max-width:270px;padding:11px 13px;border-radius:8px;background:rgba(4,8,16,.94);backdrop-filter:blur(16px);border:1px solid var(--border);opacity:0;transform:translate(-50%,-110%) scale(.96);transition:opacity .16s,transform .16s}
+#tt.vis{opacity:1;transform:translate(-50%,-110%) scale(1)}
+.ttl{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:3px}
+.ttn{font-family:var(--font-d);font-size:11px;font-weight:700;color:var(--accent2);margin-bottom:4px}
+.ttd{font-size:11px;color:var(--text);line-height:1.45;margin-bottom:7px}
+.tts{display:flex;gap:12px}
+.ttst{display:flex;align-items:center;gap:3px;font-size:10px;color:var(--muted)}
+.ttst strong{color:var(--text)}
+#dp{bottom:22px;right:16px;padding:15px 16px;width:290px;transform:translateX(320px);transition:transform .35s var(--ease)}
+#dp.open{transform:translateX(0)}
+.dp-tag{font-size:9px;text-transform:uppercase;letter-spacing:.1em;padding:2px 7px;border-radius:4px;display:inline-block;margin-bottom:9px}
+.dp-t{font-family:var(--font-d);font-size:12px;font-weight:700;color:var(--text);margin-bottom:5px;word-break:break-word}
+.dp-d{font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:11px}
+.dp-stats{display:flex;gap:14px;margin-bottom:12px}
+.dp-sb{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 9px;text-align:center}
+.dp-sb .dv{font-family:var(--font-d);font-size:16px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+.dp-sb .dk{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.dp-link{display:block;width:100%;text-align:center;padding:8px;background:rgba(247,165,86,.1);border:1px solid rgba(247,165,86,.25);border-radius:6px;color:var(--accent);font-size:11px;font-weight:600;text-decoration:none;letter-spacing:.04em;transition:background .18s}
+.dp-link:hover{background:rgba(247,165,86,.2)}
+.dp-x{position:absolute;top:11px;right:11px;background:none;border:none;color:var(--muted);font-size:17px;cursor:pointer;line-height:1}
+#ld{position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+#ld.hid{opacity:0;pointer-events:none;transition:opacity .6s}
+.ld-t{font-family:var(--font-d);font-size:20px;font-weight:800;letter-spacing:.1em}
+.ld-t span{color:var(--accent)}
+.ld-bw{width:240px;height:3px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden}
+.ld-b{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:3px;width:0%;transition:width .3s}
+.ld-m{font-size:10px;color:var(--muted)}
+#ctrl{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:100;display:flex;gap:16px;padding:7px 14px;pointer-events:none;border-radius:20px;background:rgba(2,4,8,.6);border:1px solid var(--border)}
+.hk{font-size:9px;color:var(--muted);display:flex;align-items:center;gap:4px}
+.hk kbd{background:rgba(255,255,255,.08);border:1px solid var(--border);border-radius:3px;padding:1px 4px;font-family:var(--font-b);font-size:8px;color:var(--text)}
+.switch-link{position:fixed;top:16px;left:16px;z-index:100;padding:8px 14px;background:rgba(86,212,247,.08);border:1px solid rgba(86,212,247,.22);border-radius:8px;color:var(--accent2);font-family:var(--font-b);font-size:11px;font-weight:600;text-decoration:none;display:flex;align-items:center;gap:6px;transition:background .18s}
+.switch-link:hover{background:rgba(86,212,247,.15)}
+</style>
+</head>
+<body>
+<div id="bg-div"></div>
+<div id="ld">
+  <svg class="logo" viewBox="0 0 34 34" fill="none"><circle cx="17" cy="17" r="16" stroke="#f7a556" stroke-width="1.5"/><circle cx="17" cy="17" r="6" fill="#f7a556" opacity=".9"/><circle cx="17" cy="5" r="2.5" fill="#56d4f7"/></svg>
+  <div class="ld-t"><span>Cuba</span> Dev Galaxy</div>
+  <div class="ld-bw"><div class="ld-b" id="lbar"></div></div>
+  <div class="ld-m" id="lmsg">Inicializando galaxia…</div>
+</div>
+<div id="cc"></div>
+<div class="panel" id="hdr">
+  <svg class="logo" viewBox="0 0 34 34" fill="none"><circle cx="17" cy="17" r="16" stroke="#f7a556" stroke-width="1.5"/><circle cx="17" cy="17" r="6" fill="#f7a556" opacity=".9"/><circle cx="17" cy="5" r="2.5" fill="#56d4f7"/></svg>
+  <div><div class="hdr-t"><span>Cuba</span> Dev Galaxy</div><div class="hdr-s">Desarrolladores · Soles del Ecosistema</div></div>
+</div>
+<div class="panel" id="sbar">
+  <div class="si"><span class="v" id="st-d">0</span><span class="l">Devs</span></div>
+  <div class="sdiv"></div>
+  <div class="si"><span class="v" id="st-r">0</span><span class="l">Repos</span></div>
+  <div class="sdiv"></div>
+  <div class="si"><span class="v" id="st-f">0</span><span class="l">Seguidores</span></div>
+</div>
+<a class="switch-link" href="/">← Vista por Lenguajes</a>
+<div class="panel" id="leg">
+  <div class="lt">Desarrolladores · click para ir</div>
+  <div id="litems"></div>
+</div>
+<div class="panel" id="dp">
+  <button class="dp-x" id="dpx">×</button>
+  <div class="dp-tag" id="dp-tag">REPO</div>
+  <div class="dp-t" id="dp-t"></div>
+  <div class="dp-d" id="dp-d"></div>
+  <div class="dp-stats">
+    <div class="dp-sb"><div class="dv" id="dp-s">0</div><div class="dk">★ Stars</div></div>
+    <div class="dp-sb"><div class="dv" id="dp-f">0</div><div class="dk">⑂ Forks</div></div>
+  </div>
+  <a class="dp-link" id="dp-link" href="#" target="_blank" rel="noopener">Ver en GitHub →</a>
+</div>
+<div id="tt">
+  <div class="ttl" id="ttl"></div>
+  <div class="ttn" id="ttn"></div>
+  <div class="ttd" id="ttd"></div>
+  <div class="tts"><div class="ttst"><strong id="tts-s">0</strong>&nbsp;★</div><div class="ttst"><strong id="tts-f">0</strong>&nbsp;forks</div></div>
+</div>
+<div id="ctrl">
+  <div class="hk"><kbd>drag</kbd> Orbitar</div>
+  <div class="hk"><kbd>scroll</kbd> Zoom</div>
+  <div class="hk"><kbd>click</kbd> Detalle</div>
+  <div class="hk"><kbd>F</kbd> Reset</div>
+</div>
+
+<script src="cuba-data.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+function setLd(msg,pct){document.getElementById('lmsg').textContent=msg;document.getElementById('lbar').style.width=pct+'%'}
+function hex2rgb(h){return new THREE.Color(parseInt(h.slice(1,3),16)/255,parseInt(h.slice(3,5),16)/255,parseInt(h.slice(5,7),16)/255)}
+function fmtNum(n){return n>=1000?(n/1000).toFixed(1)+'k':String(n)}
+
+setLd('Creando renderer…',10);
+const cc=document.getElementById('cc');
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.toneMapping=THREE.NoToneMapping;
+cc.appendChild(renderer.domElement);
+
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(55,window.innerWidth/window.innerHeight,0.5,12000);
+camera.position.set(0,200,300);
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;controls.dampingFactor=0.06;
+controls.maxDistance=2500;controls.minDistance=0.5;
+
+scene.add(new THREE.AmbientLight(0x445577,3.5));
+const dL=new THREE.DirectionalLight(0xffffff,1.5);dL.position.set(300,400,300);scene.add(dL);
+
+// Starfield
+(function(){const N=10000,pos=new Float32Array(N*3),sz=new Float32Array(N);
+for(let i=0;i<N;i++){const r=600+Math.random()*1200,t=Math.random()*Math.PI*2,p=Math.acos(2*Math.random()-1);
+pos[i*3]=r*Math.sin(p)*Math.cos(t);pos[i*3+1]=r*Math.sin(p)*Math.sin(t);pos[i*3+2]=r*Math.cos(p);sz[i]=0.4+Math.random()*1.8}
+const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('size',new THREE.BufferAttribute(sz,1));
+const m=new THREE.ShaderMaterial({vertexShader:`attribute float size;void main(){vec4 mv=modelViewMatrix*vec4(position,1.);gl_PointSize=size*(280./-mv.z);gl_Position=projectionMatrix*mv;}`,
+fragmentShader:`void main(){vec2 u=gl_PointCoord-.5;float d=dot(u,u);if(d>.25)discard;gl_FragColor=vec4(1.,1.,1.,(0.25-d)/0.25*0.6);}`,transparent:true,depthWrite:false});
+scene.add(new THREE.Points(g,m))})();
+
+// Glow
+function makeGlow(color){const S=256,cv=document.createElement('canvas');cv.width=cv.height=S;const ctx=cv.getContext('2d'),cx=S/2;
+const hex='#'+color.getHexString();const g=ctx.createRadialGradient(cx,cx,0,cx,cx,cx);
+g.addColorStop(0,hex+'ff');g.addColorStop(.3,hex+'88');g.addColorStop(.7,hex+'22');g.addColorStop(1,hex+'00');
+ctx.fillStyle=g;ctx.fillRect(0,0,S,S);const t=new THREE.CanvasTexture(cv);t.needsUpdate=true;return t}
+
+function makeLabel(text,hexColor){const cv=document.createElement('canvas');cv.width=256;cv.height=56;const ctx=cv.getContext('2d');
+ctx.font='bold 14px Orbitron,monospace';ctx.fillStyle=hexColor;ctx.textAlign='center';ctx.textBaseline='middle';ctx.shadowColor=hexColor;ctx.shadowBlur=8;ctx.fillText(text,128,28);
+const t=new THREE.CanvasTexture(cv);t.needsUpdate=true;return new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthWrite:false,sizeAttenuation:true}))}
+
+function makeOrbitRing(radius,color,tiltX,tiltZ){const pts=[],N=96;
+const cosX=Math.cos(tiltX),sinX=Math.sin(tiltX),cosZ=Math.cos(tiltZ),sinZ=Math.sin(tiltZ);
+for(let i=0;i<=N;i++){const a=i/N*Math.PI*2,lx=Math.cos(a)*radius,lz=Math.sin(a)*radius;
+const rx2=lx*cosZ,ry2=lx*sinZ;const ry3=ry2*cosX-lz*sinX,rz3=ry2*sinX+lz*cosX;
+pts.push(new THREE.Vector3(rx2,ry3,rz3))}
+return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:new THREE.Color(color),transparent:true,opacity:0.2,depthWrite:false}))}
+
+// ── Load data ──
+setLd('Cargando datos…',25);
+const API='https://cuba-code-galaxy-api.dogcalas.workers.dev';
+let allRepos,allDevs;
+try{
+  const[rr,dd]=await Promise.all([fetch(API+'/api/repos').then(r=>r.ok?r.json():null),fetch(API+'/api/devs').then(r=>r.ok?r.json():null)]);
+  allRepos=rr&&rr.length?rr:(window.CUBA_REPOS||[]);
+  allDevs=dd&&dd.length?dd:(window.CUBAN_DEVS||[]);
+}catch(e){allRepos=window.CUBA_REPOS||[];allDevs=window.CUBAN_DEVS||[]}
+
+// ── Map repos to devs (owner = first part of repo name) ──
+setLd('Mapeando repos a devs…',40);
+const OWNER_MAP=window.REPO_OWNER_MAP||{};
+const devLogins=new Set(allDevs.map(d=>d.login.toLowerCase()));
+const byDev={};
+for(const d of allDevs) byDev[d.login.toLowerCase()]=[];
+for(const r of allRepos){
+  const owner=r.repo.split('/')[0].toLowerCase();
+  if(byDev[owner]) byDev[owner].push(r);
+}
+// Only devs with repos
+const activeDev=allDevs.filter(d=>byDev[d.login.toLowerCase()]&&byDev[d.login.toLowerCase()].length>0);
+activeDev.sort((a,b)=>(b.followers||0)-(a.followers||0));
+
+// Stats
+const totalFollowers=activeDev.reduce((s,d)=>s+(d.followers||0),0);
+const totalRepos=activeDev.reduce((s,d)=>s+byDev[d.login.toLowerCase()].length,0);
+document.getElementById('st-d').textContent=activeDev.length;
+document.getElementById('st-r').textContent=totalRepos;
+document.getElementById('st-f').textContent=fmtNum(totalFollowers);
+
+// Dev colors — warm palette
+const DEV_COLORS=['#f7a556','#ff7043','#ffab40','#ffd54f','#ff8a65','#ffcc80','#e57373','#f48fb1','#ce93d8','#90caf9','#80cbc4','#a5d6a7','#fff176','#bcaaa4','#b0bec5'];
+
+// ── Build galaxy ──
+setLd('Construyendo galaxias…',55);
+const GALAXY_R=Math.max(180,80+Math.sqrt(activeDev.length)*45);
+const phi=(1+Math.sqrt(5))/2;
+const sunPositions=activeDev.map((_,i)=>{
+  const r=GALAXY_R*0.25+GALAXY_R*0.75*Math.sqrt((i+1)/activeDev.length);
+  const th=2*Math.PI*i/phi;
+  return{x:r*Math.cos(th),y:(Math.random()-.5)*GALAXY_R*0.05,z:r*Math.sin(th)};
+});
+
+const sunMeshes=[],sunLabels=[],planetMeshes=[],planetData=[],orbits=[];
+const orbitRingMeshes=[],orbitRingSunIdx=[];
+let pausedSunIdx=-1;
+
+const geoCache={};
+function getSphereGeo(r){const k=r.toFixed(2);return geoCache[k]||(geoCache[k]=new THREE.SphereGeometry(r,16,12))}
+
+for(let di=0;di<activeDev.length;di++){
+  const dev=activeDev[di];
+  const devRepos=byDev[dev.login.toLowerCase()];
+  const sPos=sunPositions[di];
+  const col=DEV_COLORS[di%DEV_COLORS.length];
+  const sCol=hex2rgb(col);
+
+  // Sun size by followers (log)
+  const sSize=2+Math.log((dev.followers||1)+1)*1.2;
+
+  const sMesh=new THREE.Mesh(getSphereGeo(sSize),new THREE.MeshBasicMaterial({color:sCol}));
+  sMesh.position.set(sPos.x,sPos.y,sPos.z);
+  scene.add(sMesh);
+  sunMeshes.push(sMesh);
+
+  // Glow
+  const gSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:makeGlow(sCol),transparent:true,opacity:.5,depthWrite:false,blending:THREE.AdditiveBlending}));
+  gSpr.scale.setScalar(sSize*5);gSpr.position.copy(sMesh.position);scene.add(gSpr);
+
+  // Label
+  const lSpr=makeLabel(dev.name||dev.login,col);
+  lSpr.position.set(sPos.x,sPos.y+sSize+5,sPos.z);lSpr.scale.set(32,12,1);scene.add(lSpr);
+
+  // Point light
+  scene.add(new THREE.PointLight(sCol,0.8,sSize*40+60).position.copy(sMesh.position)&&scene.children[scene.children.length-1]||new THREE.Object3D());
+  const pl=new THREE.PointLight(sCol,0.8,sSize*40+60);pl.position.copy(sMesh.position);scene.add(pl);
+
+  // Planets = repos sorted by stars
+  const sorted=[...devRepos].sort((a,b)=>(b.stars+b.forks*.5)-(a.stars+a.forks*.5));
+  const base=sSize*1.5+3,maxOrbit=60;
+  const GOLDEN_ANGLE=Math.PI*(3-Math.sqrt(5));
+  const sysTiltX=Math.sin(di*2.4)*0.35,sysTiltZ=Math.cos(di*3.9)*0.25;
+  let prevR=base-2,prevPS=0;
+
+  for(let pi=0;pi<sorted.length;pi++){
+    const repo=sorted[pi];
+    const pSize=Math.min(0.5+Math.log(Math.max(repo.stars+repo.forks*.5,1)+1)*0.8,4.5);
+    const t=sorted.length>1?pi/(sorted.length-1):0;
+    const targetR=base+(maxOrbit-base)*Math.pow(t,0.6);
+    const orbitRadius=Math.max(targetR,prevR+prevPS+pSize+2);
+    prevR=orbitRadius;prevPS=pSize;
+
+    // Language color for planet
+    const LCOLS=window.LANGUAGE_COLORS||{};
+    const pHex=LCOLS[repo.lang]||col;
+    const pCol=hex2rgb(pHex);
+    const pMesh=new THREE.Mesh(getSphereGeo(pSize),new THREE.MeshBasicMaterial({color:pCol}));
+    const angle=pi*GOLDEN_ANGLE;
+    const lx=Math.cos(angle)*orbitRadius,lz=Math.sin(angle)*orbitRadius;
+    const cosX=Math.cos(sysTiltX),sinX=Math.sin(sysTiltX),cosZ=Math.cos(sysTiltZ),sinZ=Math.sin(sysTiltZ);
+    const rx2=lx*cosZ,ry2=lx*sinZ,ry3=ry2*cosX-lz*sinX,rz3=ry2*sinX+lz*cosX;
+    pMesh.position.set(sPos.x+rx2,sPos.y+ry3,sPos.z+rz3);
+    scene.add(pMesh);
+    planetMeshes.push(pMesh);
+    planetData.push({...repo,devLogin:dev.login,devName:dev.name||dev.login});
+
+    // Orbit ring
+    const ring=makeOrbitRing(orbitRadius,col,sysTiltX,sysTiltZ);
+    ring.position.set(sPos.x,sPos.y,sPos.z);scene.add(ring);
+    orbitRingMeshes.push(ring);orbitRingSunIdx.push(di);
+
+    const speed=0.003/Math.sqrt(orbitRadius/15);
+    orbits.push({planet:pMesh,sunPos:new THREE.Vector3(sPos.x,sPos.y,sPos.z),orbitRadius,angle,speed,yOff:0,tiltX:sysTiltX,tiltZ:sysTiltZ,sunIdx:di});
+  }
+}
+
+// ── Legend ──
+const legC=document.getElementById('litems');
+const legEls={};
+for(let di=0;di<activeDev.length;di++){
+  const dev=activeDev[di],col=DEV_COLORS[di%DEV_COLORS.length],count=byDev[dev.login.toLowerCase()].length;
+  const el=document.createElement('div');el.className='li';el.dataset.idx=di;
+  el.innerHTML=`<div class="ld" style="background:${col}"></div><span class="ln">${dev.name||dev.login}</span><span class="lc">${count}</span>`;
+  el.addEventListener('click',()=>focusDev(di));
+  legC.appendChild(el);legEls[di]=el;
+}
+
+function focusDev(di){
+  const sunPos=sunMeshes[di].position.clone();
+  let firstR=20;for(const o of orbits){if(o.sunIdx===di)firstR=Math.min(firstR,o.orbitRadius)}
+  const sR=2+Math.log((activeDev[di].followers||1)+1)*1.2;
+  const viewDist=firstR+sR+5;
+  const targetCam=sunPos.clone().add(new THREE.Vector3(viewDist*.2,viewDist*.5,viewDist*.6));
+  const startPos=camera.position.clone(),startTarget=controls.target.clone();
+  let frame=0;const FRAMES=55;
+  (function fly(){frame++;const t=1-Math.pow(1-frame/FRAMES,3);
+  camera.position.lerpVectors(startPos,targetCam,t);controls.target.lerpVectors(startTarget,sunPos,t);controls.update();
+  if(frame<FRAMES)requestAnimationFrame(fly)})();
+  Object.values(legEls).forEach(e=>e.classList.remove('active'));legEls[di].classList.add('active');
+  // Open dev detail
+  const dev=activeDev[di],repos=byDev[dev.login.toLowerCase()],totalS=repos.reduce((s,r)=>s+r.stars,0);
+  document.getElementById('dp-tag').textContent='DESARROLLADOR';document.getElementById('dp-tag').style.cssText=`background:rgba(247,165,86,.12);color:var(--accent);border:1px solid rgba(247,165,86,.3)`;
+  document.getElementById('dp-t').textContent=dev.name||dev.login;
+  document.getElementById('dp-d').textContent=dev.bio||'@'+dev.login;
+  document.getElementById('dp-s').textContent=dev.followers||0;document.querySelector('#dp .dk:first-of-type')||0;
+  document.getElementById('dp-f').textContent=repos.length;
+  document.querySelectorAll('.dk')[0].textContent='Seguidores';document.querySelectorAll('.dk')[1].textContent='Repos';
+  document.getElementById('dp-link').href='https://github.com/'+dev.login;
+  document.getElementById('dp').classList.add('open');
+}
+
+// ── Raycaster ──
+const ray=new THREE.Raycaster();const mouse=new THREE.Vector2();
+let hovIdx=-1,selIdx=-1;
+const ttEl=document.getElementById('tt'),ttlEl=document.getElementById('ttl'),ttnEl=document.getElementById('ttn');
+const ttdEl=document.getElementById('ttd'),ttsEl=document.getElementById('tts-s'),ttfEl=document.getElementById('tts-f');
+
+document.addEventListener('mousemove',e=>{
+  mouse.x=(e.clientX/window.innerWidth)*2-1;mouse.y=(e.clientY/window.innerHeight)*-2+1;
+  ray.setFromCamera(mouse,camera);
+  // Check planets
+  const phits=ray.intersectObjects(planetMeshes);
+  if(phits.length>0){const idx=planetMeshes.indexOf(phits[0].object);
+    if(idx!==hovIdx){if(hovIdx>=0&&hovIdx!==selIdx)planetMeshes[hovIdx].scale.setScalar(1);hovIdx=idx;planetMeshes[idx].scale.setScalar(1.4)}
+    const r=planetData[idx];ttlEl.textContent=r.devName;ttnEl.textContent=r.repo.split('/')[1];
+    ttdEl.textContent=r.desc||'';ttsEl.textContent=r.stars;ttfEl.textContent=r.forks;
+    ttEl.style.left=e.clientX+'px';ttEl.style.top=e.clientY+'px';ttEl.classList.add('vis');
+    // Pause this dev's system
+    pausedSunIdx=orbits.find(o=>planetMeshes.indexOf(o.planet)===idx)?.sunIdx??-1;
+    renderer.domElement.style.cursor='pointer';return}
+  if(hovIdx>=0&&hovIdx!==selIdx)planetMeshes[hovIdx].scale.setScalar(1);hovIdx=-1;ttEl.classList.remove('vis');
+  // Check suns
+  const shits=ray.intersectObjects(sunMeshes);
+  if(shits.length>0){pausedSunIdx=sunMeshes.indexOf(shits[0].object);renderer.domElement.style.cursor='pointer';return}
+  // Check orbit lines
+  ray.params.Line={threshold:2.5};const rhits=ray.intersectObjects(orbitRingMeshes);ray.params.Line={threshold:1};
+  if(rhits.length>0){const ri=orbitRingMeshes.indexOf(rhits[0].object);if(ri>=0){pausedSunIdx=orbitRingSunIdx[ri];renderer.domElement.style.cursor='crosshair';return}}
+  pausedSunIdx=-1;renderer.domElement.style.cursor='default';
+});
+
+document.addEventListener('click',e=>{
+  if(e.target.closest('.panel'))return;
+  mouse.x=(e.clientX/window.innerWidth)*2-1;mouse.y=(e.clientY/window.innerHeight)*-2+1;
+  ray.setFromCamera(mouse,camera);
+  const phits=ray.intersectObjects(planetMeshes);
+  if(phits.length>0){const idx=planetMeshes.indexOf(phits[0].object);
+    if(selIdx>=0&&selIdx!==idx)planetMeshes[selIdx].scale.setScalar(1);selIdx=idx;planetMeshes[idx].scale.setScalar(1.6);
+    const r=planetData[idx];
+    document.getElementById('dp-tag').textContent=r.lang;document.getElementById('dp-tag').style.cssText=`background:rgba(86,212,247,.12);color:var(--accent2);border:1px solid rgba(86,212,247,.3)`;
+    document.getElementById('dp-t').textContent=r.repo;document.getElementById('dp-d').textContent=r.desc||'';
+    document.getElementById('dp-s').textContent=r.stars;document.getElementById('dp-f').textContent=r.forks;
+    document.querySelectorAll('.dk')[0].textContent='★ Stars';document.querySelectorAll('.dk')[1].textContent='⑂ Forks';
+    document.getElementById('dp-link').href='https://github.com/'+r.repo;
+    document.getElementById('dp').classList.add('open');controls.target.lerp(planetMeshes[idx].position,.5);return}
+  const shits=ray.intersectObjects(sunMeshes);
+  if(shits.length>0){focusDev(sunMeshes.indexOf(shits[0].object));return}
+});
+
+document.getElementById('dpx').addEventListener('click',()=>{document.getElementById('dp').classList.remove('open');if(selIdx>=0){planetMeshes[selIdx].scale.setScalar(1);selIdx=-1}});
+document.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;
+  if(e.key==='f'||e.key==='F'){controls.target.set(0,0,0);camera.position.set(0,200,300)}
+  if(e.key==='Escape'){document.getElementById('dp').classList.remove('open');if(selIdx>=0){planetMeshes[selIdx].scale.setScalar(1);selIdx=-1}}});
+window.addEventListener('resize',()=>{camera.aspect=window.innerWidth/window.innerHeight;camera.updateProjectionMatrix();renderer.setSize(window.innerWidth,window.innerHeight)});
+
+// ── Animation ──
+const clock=new THREE.Clock();let t=0;
+function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),0.05);t+=dt;
+  for(const o of orbits){if(pausedSunIdx>=0&&o.sunIdx===pausedSunIdx)continue;o.angle+=o.speed;
+    const lx=Math.cos(o.angle)*o.orbitRadius,lz=Math.sin(o.angle)*o.orbitRadius;
+    const cosX=Math.cos(o.tiltX),sinX=Math.sin(o.tiltX),cosZ=Math.cos(o.tiltZ),sinZ=Math.sin(o.tiltZ);
+    const rx2=lx*cosZ,ry2=lx*sinZ,ry3=ry2*cosX-lz*sinX,rz3=ry2*sinX+lz*cosX;
+    o.planet.position.set(o.sunPos.x+rx2,o.sunPos.y+ry3,o.sunPos.z+rz3)}
+  for(let i=0;i<sunMeshes.length;i++){const pulse=0.85+Math.sin(t*0.6+i)*0.15;
+    sunMeshes[i].material.color.copy(hex2rgb(DEV_COLORS[i%DEV_COLORS.length])).multiplyScalar(pulse)}
+  controls.update();renderer.render(scene,camera)}
+animate();
+
+setLd('¡Bienvenido!',100);
+setTimeout(()=>{const el=document.getElementById('ld');el.classList.add('hid');setTimeout(()=>el.style.display='none',700)},600);
+</script>
+</body>
+</html>
