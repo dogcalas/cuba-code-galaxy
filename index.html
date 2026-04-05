@@ -4,7 +4,59 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Cuba Code Galaxy — Ecosistema GitHub Cubano</title>
-<meta name="description" content="Visualización 3D del ecosistema open-source de Cuba. Soles=Lenguajes, Planetas=Repos, Asteroides=Devs."/>
+<meta name="description" content="Explora el ecosistema open-source cubano en una galaxia 3D interactiva. 140+ repos, 15+ desarrolladores, 20+ lenguajes. Soles = Lenguajes, Planetas = Repos, Asteroides = Devs."/>
+<meta name="keywords" content="Cuba, open source, GitHub, desarrolladores cubanos, programación, galaxia 3D, Three.js, repos cubanos, CuCoders, código abierto"/>
+<meta name="author" content="Cuba Code Galaxy"/>
+<meta name="robots" content="index, follow"/>
+<meta name="theme-color" content="#020408"/>
+<link rel="canonical" href="https://cuba-code-galaxy.pages.dev/"/>
+
+<!-- Favicon -->
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<link rel="apple-touch-icon" href="/favicon.svg"/>
+
+<!-- Open Graph / Facebook -->
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="https://cuba-code-galaxy.pages.dev/"/>
+<meta property="og:title" content="Cuba Code Galaxy — Ecosistema GitHub Cubano"/>
+<meta property="og:description" content="Explora el ecosistema open-source cubano en una galaxia 3D interactiva. 140+ repos, 15+ desarrolladores, 20+ lenguajes de programación."/>
+<meta property="og:image" content="https://cuba-code-galaxy.pages.dev/preview.jpg"/>
+<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>
+<meta property="og:locale" content="es_CU"/>
+<meta property="og:site_name" content="Cuba Code Galaxy"/>
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:url" content="https://cuba-code-galaxy.pages.dev/"/>
+<meta name="twitter:title" content="Cuba Code Galaxy — Ecosistema GitHub Cubano"/>
+<meta name="twitter:description" content="Explora el ecosistema open-source cubano en una galaxia 3D interactiva. Soles = Lenguajes, Planetas = Repos, Asteroides = Devs."/>
+<meta name="twitter:image" content="https://cuba-code-galaxy.pages.dev/preview.jpg"/>
+
+<!-- Structured Data / JSON-LD -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Cuba Code Galaxy",
+  "url": "https://cuba-code-galaxy.pages.dev",
+  "description": "Visualización 3D interactiva del ecosistema open-source cubano en GitHub. Explora repos, lenguajes y desarrolladores como una galaxia.",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Web",
+  "inLanguage": "es",
+  "author": {
+    "@type": "Organization",
+    "name": "Cuba Code Galaxy"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "screenshot": "https://cuba-code-galaxy.pages.dev/preview.jpg",
+  "keywords": "Cuba, open source, GitHub, desarrolladores cubanos, galaxia 3D"
+}
+</script>
 <style>
 @font-face {
   font-family: 'Orbitron';
@@ -920,10 +972,11 @@ function focusSolarSystem(lang) {
     if(o.sunPos.distanceTo(sunPos) < 5) maxR = Math.max(maxR, o.orbitRadius);
   }
 
-  // Fly camera very close to the star — almost touching the inner system
+  // Fly camera to frame the inner ~40% of the system — star + closest planets visible
+  const innerOrbitR = Math.min(maxR * 0.45, maxR);  // show inner planets
   const sR = sunSize(byLang[lang].length);
-  const viewDist = sR * 3.5 + 8;
-  const targetCamPos = sunPos.clone().add(new THREE.Vector3(viewDist * 0.3, viewDist * 0.6, viewDist * 0.5));
+  const viewDist = Math.max(innerOrbitR, sR * 4) + 12;
+  const targetCamPos = sunPos.clone().add(new THREE.Vector3(viewDist * 0.25, viewDist * 0.55, viewDist * 0.65));
 
   // Animate smoothly via damped lerp over ~60 frames
   const startPos    = camera.position.clone();
@@ -943,6 +996,11 @@ function focusSolarSystem(lang) {
   // Highlight selected legend item
   Object.values(legEls).forEach(e => e.classList.remove('active'));
   legEls[lang].classList.add('active');
+
+  // Open the sun ecosystem detail panel
+  closeAllPanels();
+  const si = sunData.findIndex(s => s.lang === lang);
+  if(si >= 0) openSunDP(si);
 }
 
 // ── Raycaster ─────────────────────────────────────────────────────────────────
@@ -1262,9 +1320,6 @@ function openSunDP(si){
   listEl.innerHTML=sorted.map(r=>`<div class="sundp-repo"><span class="sundp-repo-n">${r.repo.split('/')[1]}</span><span class="sundp-repo-s">★ ${r.stars}</span></div>`).join('');
 
   sundpEl.classList.add('open');
-
-  // Fly to this system
-  focusSolarSystem(lang);
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
