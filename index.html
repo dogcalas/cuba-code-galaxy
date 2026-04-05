@@ -593,7 +593,7 @@ const orbits=[]; // planet orbits
 const orbitRingMeshes=[], orbitRingSunIdx=[]; // orbit line meshes → sunIdx
 
 // Sun size — proportional to repo count (bigger language = bigger sun)
-function sunSize(n){ return 3.5 + Math.sqrt(n) * 2.2; }
+function sunSize(n){ return 2.5 + Math.log(n+1) * 2.0; }
 // Planet size based on stars+forks
 function planetSize(stars,forks){ return Math.min(0.65 + Math.log(Math.max(stars+forks*.5,1)+1)*1.05, 6.2); }
 
@@ -725,7 +725,7 @@ for(let li=0; li<langs.length; li++){
 
   // ─ Sun ─
   const sGeo = new THREE.SphereGeometry(sSize,24,20);
-  const sMat = new THREE.MeshStandardMaterial({color:sCol,emissive:sCol,emissiveIntensity:1.2,roughness:.25,metalness:0});
+  const sMat = new THREE.MeshStandardMaterial({color:sCol,emissive:sCol,emissiveIntensity:2.0,roughness:.2,metalness:0});
   const sMesh = new THREE.Mesh(sGeo, sMat);
   sMesh.position.set(sPos.x, sPos.y, sPos.z);
   scene.add(sMesh);
@@ -790,11 +790,9 @@ for(let li=0; li<langs.length; li++){
     const pGeo = getSphereGeo(pSize);
     const pMat = new THREE.MeshStandardMaterial({
       color: pCol, emissive: pCol,
-      emissiveIntensity: 0.35 + (repo.stars/400)*0.3,
-      roughness: 0.35 + Math.random()*.2,
-      metalness: 0.15 + Math.random()*.2,
-      bumpMap: planetBumpTex,
-      bumpScale: 0.6 + Math.random()*0.4,
+      emissiveIntensity: 0.7 + Math.min(repo.stars/200, 0.5),
+      roughness: 0.4,
+      metalness: 0.1,
     });
     const pMesh = new THREE.Mesh(pGeo, pMat);
 
