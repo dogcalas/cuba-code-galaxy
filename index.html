@@ -239,6 +239,7 @@ canvas{display:block;width:100%!important;height:100%!important}
 </div>
 
 <button id="fbtn"><div class="pdot"></div>Actualizar GitHub</button>
+<a id="addbtn" href="/submit.html" style="position:fixed;top:16px;left:200px;z-index:100;padding:8px 14px;background:rgba(247,165,86,.08);border:1px solid rgba(247,165,86,.22);border-radius:8px;color:var(--accent2);font-family:var(--font-b);font-size:11px;font-weight:600;cursor:pointer;transition:background .18s;text-decoration:none;display:flex;align-items:center;gap:6px" onmouseover="this.style.background='rgba(247,165,86,.15)'" onmouseout="this.style.background='rgba(247,165,86,.08)'">+ Agregar Repo</a>
 
 <!-- Search -->
 <div class="panel" id="srch">
@@ -1296,21 +1297,17 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){ closeAllPanels(); sresEl.style.display='none'; }
 });
 
-// ── GitHub API fetch ──────────────────────────────────────────────────────────
+// ── Sync with API — triggers worker scanner ─────────────────────────────────
+const API_BASE = 'https://cuba-code-galaxy-api.dogcalas.workers.dev';
 const fbtn=document.getElementById('fbtn');
 fbtn.addEventListener('click',async()=>{
-  fbtn.disabled=true; fbtn.style.opacity='.6'; fbtn.textContent=' Cargando…';
+  fbtn.disabled=true; fbtn.style.opacity='.6'; fbtn.textContent='⟳ Escaneando devs…';
   try {
-    const res=await fetch('https://api.github.com/search/repositories?q=topic:cuba&sort=stars&order=desc&per_page=50',{headers:{'Accept':'application/vnd.github.v3+json'}});
-    const data=await res.json();
-    const existing=new Set(repos.map(r=>r.repo));
-    let added=0;
-    for(const r of (data.items||[])){
-      if(!existing.has(r.full_name)&&r.language){ repos.push({repo:r.full_name,lang:r.language,stars:r.stargazers_count,forks:r.forks_count,pushed:r.pushed_at?.slice(0,10)||'',desc:r.description||''}); added++; }
-    }
-    fbtn.textContent=added>0?`✓ +${added} repos`:'✓ Actualizado';
+    const scanRes = await fetch(API_BASE+'/api/scan', {method:'POST'});
+    const scanData = await scanRes.json();
+    fbtn.textContent = scanData.added > 0 ? `✓ +${scanData.added} repos nuevos` : `✓ ${scanData.scanned} devs escaneados`;
   } catch(err){ fbtn.textContent='Error'; }
-  setTimeout(()=>{ fbtn.innerHTML='<div class="pdot"></div>Actualizar GitHub'; fbtn.disabled=false; fbtn.style.opacity='1'; },2500);
+  setTimeout(()=>{ fbtn.innerHTML='<div class="pdot"></div>Actualizar GitHub'; fbtn.disabled=false; fbtn.style.opacity='1'; },3000);
 });
 
 // ── Resize ────────────────────────────────────────────────────────────────────

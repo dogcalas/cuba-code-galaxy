@@ -1,0 +1,11 @@
+name = "cuba-code-galaxy-api"
+main = "src/index.js"
+compatibility_date = "2024-09-25"
+account_id = "9536a9ec53cf05783eefb6f6d1c06292"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cuba-code-galaxy"
+database_id = "3340099a-37d9-49b5-aa92-4c49cf24d00c"
+
+# Secrets set via `wrangler secret put`: GITHUB_TOKEN, TURNSTILE_SECRET
