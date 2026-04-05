@@ -214,13 +214,17 @@ canvas{display:block;width:100%!important;height:100%!important}
   .logo{width:24px;height:24px}
   .hdr-t{font-size:12px}
   .hdr-s{font-size:8px}
-  #sbar{padding:4px 10px;gap:10px;top:64px}
+  #sbar{padding:4px 10px;gap:10px;top:60px}
   .si .v{font-size:11px}
   .si .l{font-size:8px}
   .si{min-width:38px}
   .sdiv{height:20px}
-  #srch{width:170px;padding:7px 10px;top:12px;right:8px}
-  #sres{width:170px;right:8px;top:52px}
+  /* Search below stats bar */
+  #srch{width:170px;padding:7px 10px;top:94px;right:8px}
+  #sres{width:170px;right:8px;top:130px}
+  /* Action buttons: row below header, left-aligned */
+  #fbtn{padding:5px 10px;font-size:9px;top:94px;left:8px}
+  #addbtn{top:94px!important;left:140px!important;padding:5px 10px!important;font-size:9px!important}
   #leg{max-width:150px;padding:8px 10px;bottom:14px;left:8px}
   .ln{font-size:9px}
   #dp,#devdp{width:240px;padding:12px;bottom:14px;right:8px}
@@ -229,21 +233,28 @@ canvas{display:block;width:100%!important;height:100%!important}
   #ctrl{padding:5px 10px;gap:10px}
   .hk{font-size:8px}
   .hk kbd{font-size:7px;padding:0 3px}
-  #fbtn{padding:6px 10px;font-size:10px;top:12px;left:8px}
 }
 @media(max-width:480px){
-  #hdr{padding:5px 10px;gap:6px}
+  /* Header: compact, centered */
+  #hdr{padding:5px 10px;gap:6px;top:8px}
   .logo{width:20px;height:20px}
   .hdr-t{font-size:10px;letter-spacing:.04em}
   .hdr-s{display:none}
-  #sbar{gap:6px;padding:3px 8px;top:56px}
-  .si .v{font-size:10px}
+  /* Stats bar: below header */
+  #sbar{gap:5px;padding:3px 8px;top:48px}
+  .si .v{font-size:9px}
   .si .l{font-size:7px}
-  .si{min-width:30px}
-  .sdiv{height:16px}
-  #srch{width:140px;padding:6px 8px}
-  #sres{width:140px}
+  .si{min-width:26px}
+  .sdiv{height:14px}
+  /* Search: full width row below stats */
+  #srch{top:82px;left:8px;right:8px;width:auto;padding:6px 8px;transform:none}
+  #sres{top:116px;left:8px;right:8px;width:auto}
+  /* Action buttons: row below search */
+  #fbtn{top:116px;left:8px;padding:5px 8px;font-size:9px}
+  #addbtn{top:116px!important;left:auto!important;right:8px!important;padding:5px 8px!important;font-size:9px!important}
+  /* Legend hidden on mobile */
   #leg{display:none}
+  /* Panels slide from bottom */
   #dp,#devdp{width:calc(100vw - 16px);left:8px;right:8px;bottom:8px;max-height:45vh;overflow-y:auto}
   #dp{transform:translateY(110%)}
   #dp.open{transform:translateY(0)}
@@ -252,7 +263,6 @@ canvas{display:block;width:100%!important;height:100%!important}
   #sundp{width:calc(100vw - 16px);left:8px;right:8px;bottom:8px;max-height:50vh;transform:translateY(110%)}
   #sundp.open{transform:translateY(0)}
   #ctrl{display:none}
-  #fbtn{padding:5px 8px;font-size:9px}
 }
 </style>
 </head>
