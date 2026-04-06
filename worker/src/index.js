@@ -218,6 +218,67 @@ export default {
       return json({ repos: r.c, devs: d.c });
     }
 
+    // ── GET /api/admin/stats — full stats for admin dashboard ──
+    if (url.pathname === '/api/admin/stats' && request.method === 'GET') {
+      const stats = await env.DB.batch([
+        env.DB.prepare('SELECT COUNT(*) as c FROM repos'),
+        env.DB.prepare('SELECT COUNT(*) as c FROM devs'),
+        env.DB.prepare('SELECT COUNT(DISTINCT lang) as c FROM repos'),
+        env.DB.prepare('SELECT SUM(stars) as s, SUM(forks) as f FROM repos'),
+        env.DB.prepare('SELECT COUNT(*) as c FROM submissions WHERE status = ?').bind('pending'),
+        env.DB.prepare('SELECT COUNT(*) as c FROM submissions'),
+        env.DB.prepare('SELECT COUNT(DISTINCT LOWER(SUBSTR(repo,1,INSTR(repo,\'/\')-1))) as c FROM repos'),
+        env.DB.prepare('SELECT lang, COUNT(*) as c FROM repos GROUP BY lang ORDER BY c DESC LIMIT 10'),
+        env.DB.prepare('SELECT repo, stars FROM repos ORDER BY stars DESC LIMIT 5'),
+      ]);
+      return json({
+        repos: stats[0].results[0].c,
+        devs: stats[1].results[0].c,
+        langs: stats[2].results[0].c,
+        stars: stats[3].results[0].s || 0,
+        forks: stats[3].results[0].f || 0,
+        pending_submissions: stats[4].results[0].c,
+        total_submissions: stats[5].results[0].c,
+        unique_owners: stats[6].results[0].c,
+        top_langs: stats[7].results,
+        top_repos: stats[8].results,
+      });
+    }
+
+    // ── GET /api/admin/repos — paginated repos with search ──
+    if (url.pathname === '/api/admin/repos' && request.method === 'GET') {
+      const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
+      const perPage = Math.min(100, parseInt(url.searchParams.get('per_page') || '25'));
+      const q = url.searchParams.get('q') || '';
+      const offset = (page - 1) * perPage;
+
+      let countSql, listSql, params = [];
+      if (q) {
+        const like = '%' + q + '%';
+        countSql = 'SELECT COUNT(*) as c FROM repos WHERE repo LIKE ? OR description LIKE ? OR lang LIKE ?';
+        listSql = 'SELECT id, repo, lang, stars, forks, pushed, description FROM repos WHERE repo LIKE ? OR description LIKE ? OR lang LIKE ? ORDER BY stars DESC LIMIT ? OFFSET ?';
+        params = [like, like, like];
+      } else {
+        countSql = 'SELECT COUNT(*) as c FROM repos';
+        listSql = 'SELECT id, repo, lang, stars, forks, pushed, description FROM repos ORDER BY stars DESC LIMIT ? OFFSET ?';
+      }
+
+      const total = (await env.DB.prepare(countSql).bind(...params).first()).c;
+      const { results } = await env.DB.prepare(listSql).bind(...params, perPage, offset).all();
+
+      return json({ total, page, per_page: perPage, total_pages: Math.ceil(total / perPage), repos: results });
+    }
+
+    // ── DELETE /api/admin/repo — delete a repo (admin) ──
+    if (url.pathname === '/api/admin/repo' && request.method === 'POST') {
+      const body = await request.json();
+      const { id, admin_key } = body;
+      if (!admin_key || admin_key !== env.ADMIN_KEY) return json({ error: 'Unauthorized' }, 401);
+      if (!id) return json({ error: 'id required' }, 400);
+      await env.DB.prepare('DELETE FROM repos WHERE id = ?').bind(id).run();
+      return json({ ok: true });
+    }
+
     return json({ error: 'Not found' }, 404);
   },
 

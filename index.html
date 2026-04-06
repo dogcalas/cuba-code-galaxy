@@ -856,13 +856,17 @@ for(let li=0; li<langs.length; li++){
   }
 }
 
-// ── Dev asteroids — tamaño escalado por importancia (followers + repos) ────────
+// ── Dev asteroids — solo los devs MAS RELEVANTES (top 20 por followers) ─────
 setLd('Lanzando asteroides…', 72);
 (function(){
   const PROFS = window.USER_PROFILES || {};
-  // Use CUBAN_DEVS + enrich with USER_PROFILES
-  for(let i=0;i<devs.length;i++){
-    const dev   = devs[i];
+  // Top 20 devs por followers (>0), descartar los autocompletados sin info
+  const topDevs = [...devs]
+    .filter(d => (d.followers || 0) > 0)
+    .sort((a,b) => (b.followers || 0) - (a.followers || 0))
+    .slice(0, 20);
+  for(let i=0;i<topDevs.length;i++){
+    const dev   = topDevs[i];
     const prof  = PROFS[dev.login] || {};
     const followers = dev.followers || prof.followers || 0;
     const repos     = dev.repos     || prof.repos     || 0;
@@ -887,7 +891,7 @@ setLd('Lanzando asteroides…', 72);
     const mesh = new THREE.Mesh(geo, mat);
 
     // Spread asteroids in a ring around the galaxy, well outside solar systems
-    const angle = (i / devs.length) * Math.PI * 2 + (Math.random() - 0.5) * 0.7;
+    const angle = (i / topDevs.length) * Math.PI * 2 + (Math.random() - 0.5) * 0.7;
     const dist  = GALAXY_R * 0.75 + Math.random() * GALAXY_R * 0.5;
     const yA    = (Math.random() - 0.5) * GALAXY_R * 0.4;
     mesh.position.set(Math.cos(angle) * dist, yA, Math.sin(angle) * dist);

@@ -28,9 +28,23 @@ h1 span{color:var(--accent)}
 /* dashboard */
 #dashboard{display:none}
 .stats-row{display:flex;gap:12px;margin-bottom:20px}
-.stat-card{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center}
-.stat-card .v{font-family:var(--font-d);font-size:22px;font-weight:700;color:var(--accent)}
-.stat-card .k{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:18px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 8px;text-align:center}
+.stat-card .v{font-family:var(--font-d);font-size:18px;font-weight:700;color:var(--accent)}
+.stat-card .k{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+.repo-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.04);font-size:11px}
+.repo-row:hover{background:rgba(255,255,255,.03)}
+.repo-name{flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.repo-name a{color:var(--accent);text-decoration:none}
+.repo-name a:hover{text-decoration:underline}
+.repo-desc{font-size:10px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.repo-lang{font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(86,212,247,.12);color:var(--accent);border:1px solid rgba(86,212,247,.2);font-weight:600;flex-shrink:0}
+.repo-stats{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;flex-shrink:0;min-width:60px;text-align:right}
+.btn-del{background:rgba(247,100,100,.1);border:1px solid rgba(247,100,100,.3);color:var(--red);font-size:9px;padding:3px 8px;border-radius:4px;cursor:pointer;flex-shrink:0}
+.btn-del:hover{background:rgba(247,100,100,.2)}
+.page-btn{background:rgba(86,212,247,.1);border:1px solid rgba(86,212,247,.25);color:var(--accent);padding:5px 10px;border-radius:5px;cursor:pointer;font-size:11px}
+.page-btn:disabled{opacity:.4;cursor:not-allowed}
+.page-btn:not(:disabled):hover{background:rgba(86,212,247,.2)}
 
 .tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--border)}
 .tab{padding:8px 16px;font-size:11px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s}
@@ -75,10 +89,15 @@ h1 span{color:var(--accent)}
   <h1><span>Cuba</span> Code Galaxy — Admin</h1>
   <div class="sub">Gestiona submissions y datos del ecosistema</div>
 
-  <div class="stats-row">
-    <div class="stat-card"><div class="v" id="s-total">-</div><div class="k">Total Repos</div></div>
+  <div class="stats-grid">
+    <div class="stat-card"><div class="v" id="s-repos">-</div><div class="k">Repos</div></div>
     <div class="stat-card"><div class="v" id="s-devs">-</div><div class="k">Devs</div></div>
+    <div class="stat-card"><div class="v" id="s-owners">-</div><div class="k">Owners únicos</div></div>
+    <div class="stat-card"><div class="v" id="s-langs">-</div><div class="k">Lenguajes</div></div>
+    <div class="stat-card"><div class="v" id="s-stars">-</div><div class="k">★ Stars</div></div>
+    <div class="stat-card"><div class="v" id="s-forks">-</div><div class="k">⑂ Forks</div></div>
     <div class="stat-card"><div class="v" id="s-pending">-</div><div class="k">Pendientes</div></div>
+    <div class="stat-card"><div class="v" id="s-subs">-</div><div class="k">Total subs</div></div>
   </div>
 
   <div style="margin-bottom:14px">
@@ -87,11 +106,20 @@ h1 span{color:var(--accent)}
   </div>
 
   <div class="tabs">
-    <div class="tab active" data-tab="pending">Pendientes</div>
+    <div class="tab active" data-tab="repos">Repos</div>
+    <div class="tab" data-tab="pending">Pendientes</div>
     <div class="tab" data-tab="history">Historial</div>
   </div>
 
-  <div class="tab-content active" id="tab-pending">
+  <div class="tab-content active" id="tab-repos">
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input id="repo-search" type="text" placeholder="Buscar repo, descripción, lenguaje…" style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:var(--font-b);font-size:12px;outline:none"/>
+      <button id="search-btn" style="padding:8px 14px;background:rgba(86,212,247,.12);border:1px solid rgba(86,212,247,.3);border-radius:6px;color:var(--accent);font-size:11px;font-weight:600;cursor:pointer">Buscar</button>
+    </div>
+    <div id="repos-list"></div>
+    <div id="repos-pagination" style="display:flex;justify-content:center;align-items:center;gap:10px;margin-top:14px;font-size:11px;color:var(--muted)"></div>
+  </div>
+  <div class="tab-content" id="tab-pending">
     <div id="pending-list"></div>
   </div>
   <div class="tab-content" id="tab-history">
@@ -179,17 +207,27 @@ document.querySelectorAll('.tab').forEach(t => {
 });
 
 // ── Load data ──
+function fmtNum(n){return n>=1000?(n/1000).toFixed(1)+'k':String(n||0)}
+
 async function loadDashboard() {
-  const [reposRes, devsRes, subsRes] = await Promise.all([
-    fetch(API + '/api/repos').then(r => r.json()),
-    fetch(API + '/api/devs').then(r => r.json()),
+  const [stats, subsRes] = await Promise.all([
+    fetch(API + '/api/admin/stats').then(r => r.json()),
     fetch(API + '/api/submissions').then(r => r.json()),
   ]);
 
-  document.getElementById('s-total').textContent = reposRes.length;
-  document.getElementById('s-devs').textContent = devsRes.length;
+  document.getElementById('s-repos').textContent = stats.repos;
+  document.getElementById('s-devs').textContent = stats.devs;
+  document.getElementById('s-owners').textContent = stats.unique_owners;
+  document.getElementById('s-langs').textContent = stats.langs;
+  document.getElementById('s-stars').textContent = fmtNum(stats.stars);
+  document.getElementById('s-forks').textContent = fmtNum(stats.forks);
+  document.getElementById('s-pending').textContent = stats.pending_submissions;
+  document.getElementById('s-subs').textContent = stats.total_submissions;
+
+  // Load first page of repos
+  loadRepos(1, '');
+
   const pending = subsRes.filter(s => s.status === 'pending');
-  document.getElementById('s-pending').textContent = pending.length;
 
   // Pending
   const pList = document.getElementById('pending-list');
@@ -227,6 +265,64 @@ async function loadDashboard() {
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+// ── Repos browser with pagination + search ──
+let currentPage = 1, currentQuery = '', totalPages = 1;
+async function loadRepos(page, q) {
+  currentPage = page; currentQuery = q;
+  const url = API + '/api/admin/repos?page=' + page + '&per_page=25' + (q ? '&q=' + encodeURIComponent(q) : '');
+  const data = await fetch(url).then(r => r.json());
+  totalPages = data.total_pages;
+  const list = document.getElementById('repos-list');
+  if (!data.repos.length) {
+    list.innerHTML = '<div class="empty">Sin resultados</div>';
+  } else {
+    list.innerHTML = data.repos.map(r => `
+      <div class="repo-row" id="repo-${r.id}">
+        <div style="flex:1;min-width:0">
+          <div class="repo-name"><a href="https://github.com/${esc(r.repo)}" target="_blank">${esc(r.repo)}</a></div>
+          ${r.description ? '<div class="repo-desc">' + esc(r.description) + '</div>' : ''}
+        </div>
+        <span class="repo-lang">${esc(r.lang)}</span>
+        <span class="repo-stats">★ ${r.stars} · ⑂ ${r.forks}</span>
+        <button class="btn-del" onclick="deleteRepo(${r.id}, '${esc(r.repo)}')">×</button>
+      </div>
+    `).join('');
+  }
+  // Pagination
+  const pag = document.getElementById('repos-pagination');
+  pag.innerHTML = `
+    <button class="page-btn" id="prev-btn" ${page <= 1 ? 'disabled' : ''}>‹ Anterior</button>
+    <span>Página ${page} de ${totalPages || 1} · ${data.total} repos</span>
+    <button class="page-btn" id="next-btn" ${page >= totalPages ? 'disabled' : ''}>Siguiente ›</button>
+  `;
+  document.getElementById('prev-btn').onclick = () => loadRepos(page - 1, currentQuery);
+  document.getElementById('next-btn').onclick = () => loadRepos(page + 1, currentQuery);
+}
+
+document.getElementById('search-btn').addEventListener('click', () => {
+  loadRepos(1, document.getElementById('repo-search').value.trim());
+});
+document.getElementById('repo-search').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') loadRepos(1, e.target.value.trim());
+});
+
+async function deleteRepo(id, repoName) {
+  if (!confirm('Eliminar ' + repoName + '?')) return;
+  const res = await fetch(API + '/api/admin/repo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, admin_key: adminKey }),
+  });
+  const data = await res.json();
+  if (data.ok) {
+    document.getElementById('repo-' + id).remove();
+    const c = parseInt(document.getElementById('s-repos').textContent) - 1;
+    document.getElementById('s-repos').textContent = c;
+  } else {
+    alert('Error: ' + (data.error || 'unknown'));
+  }
+}
+
 async function approve(id) {
   const card = document.getElementById('sub-' + id);
   card.style.opacity = '.5';
@@ -241,8 +337,8 @@ async function approve(id) {
     card.style.opacity = '1';
     const n = parseInt(document.getElementById('s-pending').textContent) - 1;
     document.getElementById('s-pending').textContent = Math.max(0, n);
-    const t = parseInt(document.getElementById('s-total').textContent) + 1;
-    document.getElementById('s-total').textContent = t;
+    const t = parseInt(document.getElementById('s-repos').textContent) + 1;
+    document.getElementById('s-repos').textContent = t;
   } else {
     alert('Error: ' + (data.error || 'unknown'));
     card.style.opacity = '1';
