@@ -300,8 +300,7 @@ canvas{display:block;width:100%!important;height:100%!important}
   <div class="si"><span class="v" id="st-d">0</span><span class="l">Devs</span></div>
 </div>
 
-<button id="fbtn"><div class="pdot"></div>Actualizar GitHub</button>
-<a id="addbtn" href="/submit.html" style="position:fixed;top:16px;left:200px;z-index:100;padding:8px 14px;background:rgba(247,165,86,.08);border:1px solid rgba(247,165,86,.22);border-radius:8px;color:var(--accent2);font-family:var(--font-b);font-size:11px;font-weight:600;cursor:pointer;transition:background .18s;text-decoration:none;display:flex;align-items:center;gap:6px" onmouseover="this.style.background='rgba(247,165,86,.15)'" onmouseout="this.style.background='rgba(247,165,86,.08)'">+ Agregar Repo</a>
+<a id="addbtn" href="/submit.html" style="position:fixed;top:16px;left:16px;z-index:100;padding:8px 14px;background:rgba(247,165,86,.08);border:1px solid rgba(247,165,86,.22);border-radius:8px;color:var(--accent2);font-family:var(--font-b);font-size:11px;font-weight:600;cursor:pointer;transition:background .18s;text-decoration:none;display:flex;align-items:center;gap:6px" onmouseover="this.style.background='rgba(247,165,86,.15)'" onmouseout="this.style.background='rgba(247,165,86,.08)'">+ Agregar Repo</a>
 
 <!-- Search -->
 <div class="panel" id="srch">
@@ -1410,36 +1409,6 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){ closeAllPanels(); sresEl.style.display='none'; }
 });
 
-// ── Sync with API — triggers worker scanner (background) ────────────────────
-const API_BASE = 'https://cuba-code-galaxy-api.dogcalas.workers.dev';
-const fbtn=document.getElementById('fbtn');
-fbtn.addEventListener('click',async()=>{
-  fbtn.disabled=true; fbtn.style.opacity='.6'; fbtn.textContent='⟳ Iniciando escaneo…';
-  try {
-    const before = await fetch(API_BASE+'/api/scan/status').then(r=>r.json()).catch(()=>({repos:0}));
-    await fetch(API_BASE+'/api/scan', {method:'POST'});
-    fbtn.textContent='⟳ Escaneando en background…';
-    // Poll status every 4s for up to 40s to see new repos appear
-    let attempts=0;
-    const poll = setInterval(async()=>{
-      attempts++;
-      const after = await fetch(API_BASE+'/api/scan/status').then(r=>r.json()).catch(()=>null);
-      if(after && after.repos !== before.repos){
-        const diff = after.repos - before.repos;
-        fbtn.textContent = diff > 0 ? `✓ +${diff} repos · total ${after.repos}` : `✓ ${after.repos} repos`;
-        clearInterval(poll);
-        setTimeout(()=>{ fbtn.innerHTML='<div class="pdot"></div>Actualizar GitHub'; fbtn.disabled=false; fbtn.style.opacity='1'; },3500);
-      } else if(attempts >= 10){
-        fbtn.textContent = `✓ ${after?.repos||'?'} repos`;
-        clearInterval(poll);
-        setTimeout(()=>{ fbtn.innerHTML='<div class="pdot"></div>Actualizar GitHub'; fbtn.disabled=false; fbtn.style.opacity='1'; },3500);
-      }
-    }, 4000);
-  } catch(err){
-    fbtn.textContent='Error';
-    setTimeout(()=>{ fbtn.innerHTML='<div class="pdot"></div>Actualizar GitHub'; fbtn.disabled=false; fbtn.style.opacity='1'; },3000);
-  }
-});
 
 // ── Resize ────────────────────────────────────────────────────────────────────
 window.addEventListener('resize',()=>{

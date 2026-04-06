@@ -86,7 +86,8 @@ export default {
       return json(results);
     }
 
-    // ── POST /api/approve — approve a submission (admin, secret-protected) ──
+    // ── POST /api/approve — approve a submission (admin) ──
+    // Also adds the owner to devs table and scans all their repos
     if (url.pathname === '/api/approve' && request.method === 'POST') {
       const body = await request.json();
       const { id, admin_key } = body;
@@ -96,24 +97,69 @@ export default {
       const sub = await env.DB.prepare('SELECT * FROM submissions WHERE id = ?').bind(id).first();
       if (!sub) return json({ error: 'Submission not found' }, 404);
 
-      // Fetch repo info from GitHub
       const repoPath = sub.repo_url.replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, '');
+      const ghHeaders = { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'CubaCodeGalaxy/1.0' };
+      if (env.GITHUB_TOKEN) ghHeaders['Authorization'] = `Bearer ${env.GITHUB_TOKEN}`;
+
       try {
-        const ghHeaders = { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'CubaCodeGalaxy/1.0' };
-        if (env.GITHUB_TOKEN) ghHeaders['Authorization'] = `Bearer ${env.GITHUB_TOKEN}`;
+        // 1. Fetch the submitted repo
         const ghRes = await fetch(`https://api.github.com/repos/${repoPath}`, { headers: ghHeaders });
         if (!ghRes.ok) return json({ error: 'GitHub repo not found: ' + repoPath }, 404);
         const repo = await ghRes.json();
 
+        // 2. Insert the repo
         await env.DB.prepare(
-          'INSERT OR IGNORE INTO repos (repo, lang, stars, forks, pushed, description) VALUES (?, ?, ?, ?, ?, ?)'
+          'INSERT INTO repos (repo, lang, stars, forks, pushed, description) VALUES (?, ?, ?, ?, ?, ?) ' +
+          'ON CONFLICT(repo) DO UPDATE SET stars=excluded.stars, forks=excluded.forks, pushed=excluded.pushed, description=excluded.description, lang=excluded.lang'
         ).bind(
           repo.full_name, repo.language || 'Unknown', repo.stargazers_count,
           repo.forks_count, (repo.pushed_at || '').slice(0, 10), repo.description || ''
         ).run();
 
+        // 3. Add owner to devs table + scan all their repos
+        const ownerLogin = repo.owner.login;
+        const profileRes = await fetch(`https://api.github.com/users/${ownerLogin}`, { headers: ghHeaders });
+        let ownerInfo = { login: ownerLogin, name: ownerLogin, followers: 0, public_repos: 0, bio: '' };
+        if (profileRes.ok) ownerInfo = { ...ownerInfo, ...(await profileRes.json()) };
+
+        await env.DB.prepare(
+          'INSERT INTO devs (login, name, followers, repos_count, bio) VALUES (?, ?, ?, ?, ?) ' +
+          'ON CONFLICT(login) DO UPDATE SET name=excluded.name, followers=excluded.followers, repos_count=excluded.repos_count, bio=excluded.bio'
+        ).bind(
+          ownerLogin,
+          ownerInfo.name || ownerLogin,
+          ownerInfo.followers || 0,
+          ownerInfo.public_repos || 0,
+          ownerInfo.bio || ''
+        ).run();
+
+        // 4. Scan all of this owner's repos in background
+        ctx.waitUntil((async () => {
+          try {
+            const reposRes = await fetch(
+              `https://api.github.com/users/${ownerLogin}/repos?per_page=100&sort=updated`,
+              { headers: ghHeaders }
+            );
+            if (!reposRes.ok) return;
+            const allRepos = await reposRes.json();
+            const stmt = env.DB.prepare(
+              'INSERT INTO repos (repo, lang, stars, forks, pushed, description) VALUES (?, ?, ?, ?, ?, ?) ' +
+              'ON CONFLICT(repo) DO UPDATE SET stars=excluded.stars, forks=excluded.forks, pushed=excluded.pushed, description=excluded.description, lang=excluded.lang'
+            );
+            const batch = [];
+            for (const r of allRepos) {
+              if (!r.language || r.fork) continue;
+              batch.push(stmt.bind(
+                r.full_name, r.language, r.stargazers_count, r.forks_count,
+                (r.pushed_at || '').slice(0, 10), r.description || ''
+              ));
+            }
+            if (batch.length > 0) await env.DB.batch(batch);
+          } catch (e) {}
+        })());
+
         await env.DB.prepare("UPDATE submissions SET status = 'approved' WHERE id = ?").bind(id).run();
-        return json({ ok: true, repo: repo.full_name });
+        return json({ ok: true, repo: repo.full_name, owner: ownerLogin, scanning_owner_repos: true });
       } catch (e) {
         return json({ error: e.message }, 500);
       }
