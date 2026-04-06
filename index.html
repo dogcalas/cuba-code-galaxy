@@ -296,8 +296,6 @@ canvas{display:block;width:100%!important;height:100%!important}
   <div class="si"><span class="v" id="st-s">0</span><span class="l">Estrellas</span></div>
   <div class="sdiv"></div>
   <div class="si"><span class="v" id="st-f">0</span><span class="l">Forks</span></div>
-  <div class="sdiv"></div>
-  <div class="si"><span class="v" id="st-d">0</span><span class="l">Devs</span></div>
 </div>
 
 <a id="addbtn" href="/submit.html" style="position:fixed;top:16px;left:16px;z-index:100;padding:8px 14px;background:rgba(247,165,86,.08);border:1px solid rgba(247,165,86,.22);border-radius:8px;color:var(--accent2);font-family:var(--font-b);font-size:11px;font-weight:600;cursor:pointer;transition:background .18s;text-decoration:none;display:flex;align-items:center;gap:6px" onmouseover="this.style.background='rgba(247,165,86,.15)'" onmouseout="this.style.background='rgba(247,165,86,.08)'">+ Agregar Repo</a>
@@ -582,7 +580,6 @@ document.getElementById('st-r').textContent = repos.length;
 document.getElementById('st-l').textContent = langs.length;
 document.getElementById('st-s').textContent = fmtNum(totalStars);
 document.getElementById('st-f').textContent = fmtNum(totalForks);
-document.getElementById('st-d').textContent = devs.length;
 
 // Raycast data
 const planetMeshes=[], planetData=[];
