@@ -591,8 +591,16 @@ const orbitRingMeshes=[], orbitRingSunIdx=[];
 const galaxyCenters={};
 
 // ── Sizing functions ─────────────────────────────────────────────────────────
-function sunSize(n){ return 1.8 + Math.log(n+1) * 1.0; } // owner sun (smaller)
-function galaxyNucleusSize(n){ return 3 + Math.log(n+1) * 2.5; } // language nucleus (bigger)
+// Sun size — depends on both repo count AND total stars (popularity)
+function sunSize(repoCount, totalStars){
+  const repoFactor  = Math.log(repoCount + 1) * 0.8;
+  const starFactor  = Math.log((totalStars || 0) + 1) * 0.9;
+  return 1.5 + repoFactor + starFactor;
+}
+// Language nucleus — bigger when more repos AND more total stars
+function galaxyNucleusSize(repoCount, totalStars){
+  return 2.5 + Math.log(repoCount + 1) * 2.0 + Math.log((totalStars || 0) + 1) * 1.2;
+}
 function planetSize(s,f){ return Math.min(0.5 + Math.log(Math.max(s+f*.5,1)+1)*0.8, 4.5); }
 
 // ── Geometry cache ───────────────────────────────────────────────────────────
@@ -671,7 +679,8 @@ for(let li=0; li<langs.length; li++){
   galaxyCenters[lang] = new THREE.Vector3(gCenter.x, gCenter.y, gCenter.z);
 
   // ── Galaxy nucleus: bright glow marking this language cluster ──
-  const nucSize = galaxyNucleusSize(lRepos.length);
+  const langStars = lRepos.reduce((s,r) => s + (r.stars || 0), 0);
+  const nucSize = galaxyNucleusSize(lRepos.length, langStars);
   const nucGlow = new THREE.Sprite(new THREE.SpriteMaterial({
     map: makeGlow(sCol), transparent:true, opacity:0.4, depthWrite:false, blending:THREE.AdditiveBlending
   }));
@@ -718,8 +727,9 @@ for(let li=0; li<langs.length; li++){
     const sunWorldX = gCenter.x + sp.x, sunWorldY = gCenter.y + sp.y, sunWorldZ = gCenter.z + sp.z;
     const thisSunIdx = globalSunIdx++;
 
-    // Sun = owner
-    const sSize = sunSize(ownerRepos.length);
+    // Sun = owner — size by repos + total stars
+    const ownerStars = ownerRepos.reduce((s,r) => s + (r.stars || 0), 0);
+    const sSize = sunSize(ownerRepos.length, ownerStars);
     const sMesh = new THREE.Mesh(getSphereGeo(sSize), new THREE.MeshBasicMaterial({color:sCol}));
     sMesh.position.set(sunWorldX, sunWorldY, sunWorldZ);
     scene.add(sMesh);
