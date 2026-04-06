@@ -1238,11 +1238,14 @@ document.addEventListener('click', e=>{
     closeAllPanels(); openDP(idx); controls.target.lerp(planetMeshes[idx].position,.5); return;
   }
 
-  // Suns
-  const shits=ray.intersectObjects(sunMeshes);
+  // Suns — owner-sun → dev panel; phantom sun → language ecosystem
+  const shits=ray.intersectObjects(sunMeshes.filter(m=>m.visible));
   if(shits.length>0){
     const si=sunMeshes.indexOf(shits[0].object);
-    closeAllPanels(); openSunDP(si); return;
+    const sd = sunData[si];
+    closeAllPanels();
+    if(sd.isOwnerSun){ openOwnerDP(si); } else { openSunDP(si); }
+    return;
   }
 
   // Moons
@@ -1321,6 +1324,26 @@ function openDevDPFromMoon(md){
   document.getElementById('devdp-f').textContent=prof.followers||0;
   document.getElementById('devdp-r').textContent=prof.repos||0;
   document.getElementById('devdp-link').href='https://github.com/'+md.login;
+  devdpEl.classList.add('open');
+}
+
+// ── Owner-sun panel: shows the dev + their repos in this language ───────────
+function openOwnerDP(si){
+  const sd = sunData[si];
+  const owner = sd.owner;
+  const lang = sd.lang;
+  // Match against known cuban devs (case-insensitive)
+  const devMatch = devs.find(d => d.login.toLowerCase() === owner.toLowerCase());
+  // Repos by this owner in this language (case-insensitive owner match)
+  const ownerRepos = (byLang[lang]||[]).filter(r => r.repo.split('/')[0].toLowerCase() === owner.toLowerCase());
+  const totalS = ownerRepos.reduce((s,r)=>s+r.stars,0);
+
+  document.getElementById('devdp-name').textContent = devMatch?.name || owner;
+  document.getElementById('devdp-login').textContent = '@'+owner+' · '+lang;
+  document.getElementById('devdp-bio').textContent = devMatch?.bio || `${ownerRepos.length} repos en ${lang} · ${totalS} ★`;
+  document.getElementById('devdp-f').textContent = devMatch?.followers || 0;
+  document.getElementById('devdp-r').textContent = ownerRepos.length;
+  document.getElementById('devdp-link').href = 'https://github.com/'+owner;
   devdpEl.classList.add('open');
 }
 
