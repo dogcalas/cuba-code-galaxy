@@ -53,6 +53,35 @@ export default {
           return json({ error: 'repo_url and turnstile_token are required' }, 400);
         }
 
+        // Validate URL format and extract owner/repo
+        const match = repo_url.match(/github\.com\/([^/]+)\/([^/?#]+)/i);
+        if (!match) {
+          return json({ error: 'URL invalida. Debe ser un repo de GitHub (https://github.com/usuario/repo)' }, 400);
+        }
+        const fullName = `${match[1]}/${match[2].replace(/\.git$/, '')}`;
+        const normalizedUrl = `https://github.com/${fullName}`;
+
+        // Check duplicate in repos table (case-insensitive)
+        const existingRepo = await env.DB.prepare(
+          'SELECT repo FROM repos WHERE LOWER(repo) = LOWER(?)'
+        ).bind(fullName).first();
+        if (existingRepo) {
+          return json({ error: 'Este repo ya existe en la galaxia: ' + existingRepo.repo }, 409);
+        }
+
+        // Check duplicate in submissions (any status)
+        const existingSub = await env.DB.prepare(
+          "SELECT id, status FROM submissions WHERE LOWER(repo_url) LIKE LOWER(?)"
+        ).bind('%' + fullName + '%').first();
+        if (existingSub) {
+          const msg = existingSub.status === 'pending'
+            ? 'Este repo ya fue enviado y esta en revision'
+            : existingSub.status === 'approved'
+            ? 'Este repo ya fue aprobado anteriormente'
+            : 'Este repo ya fue rechazado anteriormente';
+          return json({ error: msg }, 409);
+        }
+
         // Verify Turnstile
         const tsRes = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
           method: 'POST',
@@ -65,14 +94,14 @@ export default {
         });
         const tsData = await tsRes.json();
         if (!tsData.success) {
-          return json({ error: 'Turnstile verification failed' }, 403);
+          return json({ error: 'Verificacion Turnstile fallida' }, 403);
         }
 
         await env.DB.prepare(
           'INSERT INTO submissions (repo_url, submitter_name, reason) VALUES (?, ?, ?)'
-        ).bind(repo_url, submitter_name || 'Anon', reason || '').run();
+        ).bind(normalizedUrl, submitter_name || 'Anon', reason || '').run();
 
-        return json({ ok: true, message: 'Submission received — pending review' });
+        return json({ ok: true, message: 'Repo enviado, pendiente de revision' });
       } catch (e) {
         return json({ error: e.message }, 500);
       }
