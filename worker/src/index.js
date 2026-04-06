@@ -20,7 +20,7 @@ function json(data, status = 200) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     if (request.method === 'OPTIONS') {
@@ -130,9 +130,17 @@ export default {
     }
 
     // ── POST /api/scan — Scan all known Cuban devs for new repos ──
+    // Returns immediately, processes in background to avoid 30s CPU limit
     if (url.pathname === '/api/scan' && request.method === 'POST') {
-      const result = await scanCubanDevs(env);
-      return json(result);
+      ctx.waitUntil(scanCubanDevs(env));
+      return json({ ok: true, message: 'Scan started in background', estimated_seconds: 30 });
+    }
+
+    // ── GET /api/scan/status — count devs/repos ──
+    if (url.pathname === '/api/scan/status' && request.method === 'GET') {
+      const r = await env.DB.prepare('SELECT COUNT(*) as c FROM repos').first();
+      const d = await env.DB.prepare('SELECT COUNT(*) as c FROM devs').first();
+      return json({ repos: r.c, devs: d.c });
     }
 
     return json({ error: 'Not found' }, 404);
@@ -145,6 +153,7 @@ export default {
 };
 
 // ── Scanner: fetch repos from all known Cuban devs via GitHub API ─────────
+// Optimized: batch D1 writes, parallel GitHub fetches per dev
 async function scanCubanDevs(env) {
   const token = env.GITHUB_TOKEN;
   if (!token) return { error: 'GITHUB_TOKEN not set' };
@@ -155,65 +164,62 @@ async function scanCubanDevs(env) {
     'User-Agent': 'CubaCodeGalaxy/1.0',
   };
 
-  // Get all known devs
   const { results: devs } = await env.DB.prepare('SELECT login FROM devs').all();
-  let added = 0, scanned = 0, errors = 0;
+  let totalRepos = 0, scanned = 0, errors = 0;
+
+  // Prepared statement reused for all repo upserts
+  const repoStmt = env.DB.prepare(
+    'INSERT INTO repos (repo, lang, stars, forks, pushed, description) VALUES (?, ?, ?, ?, ?, ?) ' +
+    'ON CONFLICT(repo) DO UPDATE SET stars=excluded.stars, forks=excluded.forks, pushed=excluded.pushed, ' +
+    'description=excluded.description, lang=excluded.lang'
+  );
+  const devStmt = env.DB.prepare(
+    'UPDATE devs SET name = ?, followers = ?, repos_count = ?, bio = ? WHERE login = ?'
+  );
 
   for (const dev of devs) {
     try {
-      // Fetch dev's repos (up to 100)
-      const res = await fetch(
-        `https://api.github.com/users/${dev.login}/repos?per_page=100&sort=updated`,
-        { headers }
-      );
-      if (!res.ok) { errors++; continue; }
-      const repos = await res.json();
+      // Parallel fetch: profile + repos
+      const [profileRes, reposRes] = await Promise.all([
+        fetch(`https://api.github.com/users/${dev.login}`, { headers }),
+        fetch(`https://api.github.com/users/${dev.login}/repos?per_page=100&sort=updated`, { headers }),
+      ]);
+      if (!reposRes.ok) { errors++; continue; }
+      const repos = await reposRes.json();
       scanned++;
 
-      // Also update dev profile
-      const profileRes = await fetch(`https://api.github.com/users/${dev.login}`, { headers });
+      // Build batch of statements for this dev
+      const batch = [];
+
       if (profileRes.ok) {
         const profile = await profileRes.json();
-        await env.DB.prepare(
-          'UPDATE devs SET name = ?, followers = ?, repos_count = ?, bio = ? WHERE login = ?'
-        ).bind(
+        batch.push(devStmt.bind(
           profile.name || dev.login,
           profile.followers || 0,
           profile.public_repos || 0,
           profile.bio || '',
           dev.login
-        ).run();
+        ));
       }
 
       for (const repo of repos) {
-        if (!repo.language || repo.fork) continue; // skip forks and language-less repos
-        const fullName = repo.full_name;
-        const pushed = repo.pushed_at ? repo.pushed_at.slice(0, 10) : '';
-
-        const existing = await env.DB.prepare('SELECT id FROM repos WHERE repo = ?').bind(fullName).first();
-        if (existing) {
-          // Update existing repo stats
-          await env.DB.prepare(
-            'UPDATE repos SET stars = ?, forks = ?, pushed = ?, description = ?, lang = ? WHERE repo = ?'
-          ).bind(
-            repo.stargazers_count, repo.forks_count, pushed,
-            repo.description || '', repo.language, fullName
-          ).run();
-        } else {
-          // Insert new repo
-          await env.DB.prepare(
-            'INSERT OR IGNORE INTO repos (repo, lang, stars, forks, pushed, description) VALUES (?, ?, ?, ?, ?, ?)'
-          ).bind(
-            fullName, repo.language, repo.stargazers_count,
-            repo.forks_count, pushed, repo.description || ''
-          ).run();
-          added++;
-        }
+        if (!repo.language || repo.fork) continue;
+        batch.push(repoStmt.bind(
+          repo.full_name,
+          repo.language,
+          repo.stargazers_count,
+          repo.forks_count,
+          (repo.pushed_at || '').slice(0, 10),
+          repo.description || ''
+        ));
+        totalRepos++;
       }
+
+      if (batch.length > 0) await env.DB.batch(batch);
     } catch (e) {
       errors++;
     }
   }
 
-  return { scanned, added, errors, total_devs: devs.length };
+  return { scanned, repos_processed: totalRepos, errors, total_devs: devs.length };
 }

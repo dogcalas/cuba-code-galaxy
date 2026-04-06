@@ -1387,17 +1387,35 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){ closeAllPanels(); sresEl.style.display='none'; }
 });
 
-// ── Sync with API — triggers worker scanner ─────────────────────────────────
+// ── Sync with API — triggers worker scanner (background) ────────────────────
 const API_BASE = 'https://cuba-code-galaxy-api.dogcalas.workers.dev';
 const fbtn=document.getElementById('fbtn');
 fbtn.addEventListener('click',async()=>{
-  fbtn.disabled=true; fbtn.style.opacity='.6'; fbtn.textContent='⟳ Escaneando devs…';
+  fbtn.disabled=true; fbtn.style.opacity='.6'; fbtn.textContent='⟳ Iniciando escaneo…';
   try {
-    const scanRes = await fetch(API_BASE+'/api/scan', {method:'POST'});
-    const scanData = await scanRes.json();
-    fbtn.textContent = scanData.added > 0 ? `✓ +${scanData.added} repos nuevos` : `✓ ${scanData.scanned} devs escaneados`;
-  } catch(err){ fbtn.textContent='Error'; }
-  setTimeout(()=>{ fbtn.innerHTML='<div class="pdot"></div>Actualizar GitHub'; fbtn.disabled=false; fbtn.style.opacity='1'; },3000);
+    const before = await fetch(API_BASE+'/api/scan/status').then(r=>r.json()).catch(()=>({repos:0}));
+    await fetch(API_BASE+'/api/scan', {method:'POST'});
+    fbtn.textContent='⟳ Escaneando en background…';
+    // Poll status every 4s for up to 40s to see new repos appear
+    let attempts=0;
+    const poll = setInterval(async()=>{
+      attempts++;
+      const after = await fetch(API_BASE+'/api/scan/status').then(r=>r.json()).catch(()=>null);
+      if(after && after.repos !== before.repos){
+        const diff = after.repos - before.repos;
+        fbtn.textContent = diff > 0 ? `✓ +${diff} repos · total ${after.repos}` : `✓ ${after.repos} repos`;
+        clearInterval(poll);
+        setTimeout(()=>{ fbtn.innerHTML='<div class="pdot"></div>Actualizar GitHub'; fbtn.disabled=false; fbtn.style.opacity='1'; },3500);
+      } else if(attempts >= 10){
+        fbtn.textContent = `✓ ${after?.repos||'?'} repos`;
+        clearInterval(poll);
+        setTimeout(()=>{ fbtn.innerHTML='<div class="pdot"></div>Actualizar GitHub'; fbtn.disabled=false; fbtn.style.opacity='1'; },3500);
+      }
+    }, 4000);
+  } catch(err){
+    fbtn.textContent='Error';
+    setTimeout(()=>{ fbtn.innerHTML='<div class="pdot"></div>Actualizar GitHub'; fbtn.disabled=false; fbtn.style.opacity='1'; },3000);
+  }
 });
 
 // ── Resize ────────────────────────────────────────────────────────────────────
