@@ -145,50 +145,67 @@ export default {
           repo.forks_count, (repo.pushed_at || '').slice(0, 10), repo.description || ''
         ).run();
 
-        // 3. Add owner to devs table + scan all their repos
+        // 3. Check if owner is a User (not an Organization)
+        // Organizations may contain repos from non-Cuban contributors,
+        // so we only auto-scan personal user accounts.
         const ownerLogin = repo.owner.login;
+        const ownerType = repo.owner.type; // "User" or "Organization"
         const profileRes = await fetch(`https://api.github.com/users/${ownerLogin}`, { headers: ghHeaders });
         let ownerInfo = { login: ownerLogin, name: ownerLogin, followers: 0, public_repos: 0, bio: '' };
         if (profileRes.ok) ownerInfo = { ...ownerInfo, ...(await profileRes.json()) };
 
-        await env.DB.prepare(
-          'INSERT INTO devs (login, name, followers, repos_count, bio) VALUES (?, ?, ?, ?, ?) ' +
-          'ON CONFLICT(login) DO UPDATE SET name=excluded.name, followers=excluded.followers, repos_count=excluded.repos_count, bio=excluded.bio'
-        ).bind(
-          ownerLogin,
-          ownerInfo.name || ownerLogin,
-          ownerInfo.followers || 0,
-          ownerInfo.public_repos || 0,
-          ownerInfo.bio || ''
-        ).run();
+        const isUser = ownerType === 'User';
 
-        // 4. Scan all of this owner's repos in background
-        ctx.waitUntil((async () => {
-          try {
-            const reposRes = await fetch(
-              `https://api.github.com/users/${ownerLogin}/repos?per_page=100&sort=updated`,
-              { headers: ghHeaders }
-            );
-            if (!reposRes.ok) return;
-            const allRepos = await reposRes.json();
-            const stmt = env.DB.prepare(
-              'INSERT INTO repos (repo, lang, stars, forks, pushed, description) VALUES (?, ?, ?, ?, ?, ?) ' +
-              'ON CONFLICT(repo) DO UPDATE SET stars=excluded.stars, forks=excluded.forks, pushed=excluded.pushed, description=excluded.description, lang=excluded.lang'
-            );
-            const batch = [];
-            for (const r of allRepos) {
-              if (!r.language || r.fork) continue;
-              batch.push(stmt.bind(
-                r.full_name, r.language, r.stargazers_count, r.forks_count,
-                (r.pushed_at || '').slice(0, 10), r.description || ''
-              ));
-            }
-            if (batch.length > 0) await env.DB.batch(batch);
-          } catch (e) {}
-        })());
+        // Only add individual users to devs table, not organizations
+        if (isUser) {
+          await env.DB.prepare(
+            'INSERT INTO devs (login, name, followers, repos_count, bio) VALUES (?, ?, ?, ?, ?) ' +
+            'ON CONFLICT(login) DO UPDATE SET name=excluded.name, followers=excluded.followers, repos_count=excluded.repos_count, bio=excluded.bio'
+          ).bind(
+            ownerLogin,
+            ownerInfo.name || ownerLogin,
+            ownerInfo.followers || 0,
+            ownerInfo.public_repos || 0,
+            ownerInfo.bio || ''
+          ).run();
+        }
+
+        // 4. Scan all of this owner's repos in background — only for Users
+        let scanningOwnerRepos = false;
+        if (isUser) {
+          scanningOwnerRepos = true;
+          ctx.waitUntil((async () => {
+            try {
+              const reposRes = await fetch(
+                `https://api.github.com/users/${ownerLogin}/repos?per_page=100&sort=updated`,
+                { headers: ghHeaders }
+              );
+              if (!reposRes.ok) return;
+              const allRepos = await reposRes.json();
+              const stmt = env.DB.prepare(
+                'INSERT INTO repos (repo, lang, stars, forks, pushed, description) VALUES (?, ?, ?, ?, ?, ?) ' +
+                'ON CONFLICT(repo) DO UPDATE SET stars=excluded.stars, forks=excluded.forks, pushed=excluded.pushed, description=excluded.description, lang=excluded.lang'
+              );
+              const batch = [];
+              for (const r of allRepos) {
+                if (!r.language || r.fork) continue;
+                batch.push(stmt.bind(
+                  r.full_name, r.language, r.stargazers_count, r.forks_count,
+                  (r.pushed_at || '').slice(0, 10), r.description || ''
+                ));
+              }
+              if (batch.length > 0) await env.DB.batch(batch);
+            } catch (e) {}
+          })());
+        }
 
         await env.DB.prepare("UPDATE submissions SET status = 'approved' WHERE id = ?").bind(id).run();
-        return json({ ok: true, repo: repo.full_name, owner: ownerLogin, scanning_owner_repos: true });
+        return json({
+          ok: true, repo: repo.full_name, owner: ownerLogin,
+          owner_type: ownerType,
+          scanning_owner_repos: scanningOwnerRepos,
+          skipped_org_scan: !isUser ? `${ownerLogin} is an Organization — only the submitted repo was added` : undefined,
+        });
       } catch (e) {
         return json({ error: e.message }, 500);
       }
@@ -301,7 +318,7 @@ async function scanCubanDevs(env) {
   };
 
   const { results: devs } = await env.DB.prepare('SELECT login FROM devs').all();
-  let totalRepos = 0, scanned = 0, errors = 0;
+  let totalRepos = 0, scanned = 0, skippedOrgs = 0, errors = 0;
 
   // Prepared statement reused for all repo upserts
   const repoStmt = env.DB.prepare(
@@ -315,11 +332,23 @@ async function scanCubanDevs(env) {
 
   for (const dev of devs) {
     try {
-      // Parallel fetch: profile + repos
-      const [profileRes, reposRes] = await Promise.all([
-        fetch(`https://api.github.com/users/${dev.login}`, { headers }),
-        fetch(`https://api.github.com/users/${dev.login}/repos?per_page=100&sort=updated`, { headers }),
-      ]);
+      // First fetch profile to check if it's a User or Organization
+      const profileRes = await fetch(`https://api.github.com/users/${dev.login}`, { headers });
+      if (!profileRes.ok) { errors++; continue; }
+      const profile = await profileRes.json();
+
+      // Skip organizations — only scan individual users' repos
+      // Orgs may have repos from non-Cuban contributors
+      if (profile.type === 'Organization') {
+        skippedOrgs++;
+        continue;
+      }
+
+      // Fetch repos only for Users
+      const reposRes = await fetch(
+        `https://api.github.com/users/${dev.login}/repos?per_page=100&sort=updated`,
+        { headers }
+      );
       if (!reposRes.ok) { errors++; continue; }
       const repos = await reposRes.json();
       scanned++;
@@ -327,16 +356,13 @@ async function scanCubanDevs(env) {
       // Build batch of statements for this dev
       const batch = [];
 
-      if (profileRes.ok) {
-        const profile = await profileRes.json();
-        batch.push(devStmt.bind(
-          profile.name || dev.login,
-          profile.followers || 0,
-          profile.public_repos || 0,
-          profile.bio || '',
-          dev.login
-        ));
-      }
+      batch.push(devStmt.bind(
+        profile.name || dev.login,
+        profile.followers || 0,
+        profile.public_repos || 0,
+        profile.bio || '',
+        dev.login
+      ));
 
       for (const repo of repos) {
         if (!repo.language || repo.fork) continue;
@@ -357,5 +383,5 @@ async function scanCubanDevs(env) {
     }
   }
 
-  return { scanned, repos_processed: totalRepos, errors, total_devs: devs.length };
+  return { scanned, repos_processed: totalRepos, skipped_orgs: skippedOrgs, errors, total_devs: devs.length };
 }
