@@ -205,10 +205,14 @@ canvas{display:block;width:100%!important;height:100%!important}
 .sundp-sub{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
 .sundp-top{margin-top:10px}
 .sundp-top-t{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
-.sundp-repo{padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);display:flex;justify-content:space-between;align-items:center}
+.sundp-repo{padding:5px 6px;border-bottom:1px solid rgba(255,255,255,.04);display:flex;justify-content:space-between;align-items:center;cursor:pointer;border-radius:4px;transition:background .15s}
 .sundp-repo:last-child{border-bottom:none}
+.sundp-repo:hover{background:rgba(255,255,255,.06)}
 .sundp-repo-n{font-size:11px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sundp-repo-s{font-size:10px;color:var(--accent);font-variant-numeric:tabular-nums;margin-left:8px}
+.sundp-list-scroll{max-height:260px;overflow-y:auto;padding-right:4px}
+.sundp-list-scroll::-webkit-scrollbar{width:3px}
+.sundp-list-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media(max-width:768px){
@@ -343,8 +347,8 @@ canvas{display:block;width:100%!important;height:100%!important}
     <div class="dp-sb"><div class="dv" id="devdp-r" style="color:var(--accent2)">0</div><div class="dk">Repos</div></div>
   </div>
   <div class="sundp-top" id="devdp-repos-wrap" style="display:none">
-    <div class="sundp-top-t">Top repos</div>
-    <div id="devdp-repos"></div>
+    <div class="sundp-top-t">Repos</div>
+    <div id="devdp-repos" class="sundp-list-scroll"></div>
   </div>
   <a class="dp-link" id="devdp-link" href="#" target="_blank" rel="noopener" style="background:rgba(247,165,86,.1);border-color:rgba(247,165,86,.25);color:var(--accent2)">Ver en GitHub →</a>
 </div>
@@ -361,8 +365,8 @@ canvas{display:block;width:100%!important;height:100%!important}
   </div>
   <div class="dp-badges" id="sundp-badges"></div>
   <div class="sundp-top">
-    <div class="sundp-top-t">Top repos por estrellas</div>
-    <div id="sundp-list"></div>
+    <div class="sundp-top-t">Repos por estrellas</div>
+    <div id="sundp-list" class="sundp-list-scroll"></div>
   </div>
 </div>
 
@@ -1301,6 +1305,21 @@ function closeAllPanels(){
   if(selIdx>=0){ planetMeshes[selIdx].scale.setScalar(1); selIdx=-1; }
 }
 
+// ── Navigate to a repo (same effect as clicking its planet) ──────────────────
+function goToRepo(repoName){
+  const repoObj = repos.find(r=>r.repo===repoName);
+  if(!repoObj) return;
+  const idx = planetData.indexOf(repoObj);
+  if(idx<0) return;
+  closeAllPanels();
+  if(selIdx>=0 && selIdx!==idx) planetMeshes[selIdx].scale.setScalar(1);
+  selIdx = idx;
+  planetMeshes[idx].scale.setScalar(1.6);
+  openDP(idx);
+  controls.target.copy(planetMeshes[idx].position);
+  camera.position.copy(planetMeshes[idx].position).add(new THREE.Vector3(20,10,30));
+}
+
 // ── Planet detail panel ──────────────────────────────────────────────────────
 document.getElementById('dpx').addEventListener('click',()=>closeAllPanels());
 function openDP(idx){
@@ -1326,18 +1345,21 @@ document.getElementById('devdpx').addEventListener('click',()=>closeAllPanels())
 function renderDevTopRepos(login){
   const ownerRepos = repos
     .filter(r => r.repo.split('/')[0].toLowerCase() === login.toLowerCase())
-    .sort((a,b) => (b.stars + b.forks*0.5) - (a.stars + a.forks*0.5))
-    .slice(0, 5);
+    .sort((a,b) => (b.stars + b.forks*0.5) - (a.stars + a.forks*0.5));
   const wrap = document.getElementById('devdp-repos-wrap');
   const list = document.getElementById('devdp-repos');
   if(ownerRepos.length === 0){ wrap.style.display = 'none'; return; }
   wrap.style.display = 'block';
   list.innerHTML = ownerRepos.map(r => `
-    <div class="sundp-repo">
+    <div class="sundp-repo" data-repo="${r.repo}">
       <span class="sundp-repo-n" title="${r.repo}">${r.repo.split('/')[1]}</span>
       <span class="sundp-repo-s">★ ${r.stars}</span>
     </div>
   `).join('');
+  list.onclick = e => {
+    const item = e.target.closest('.sundp-repo'); if(!item) return;
+    goToRepo(item.dataset.repo);
+  };
 }
 
 function openDevDP(idx){
@@ -1409,10 +1431,14 @@ function openSunDP(si){
   if(topRepo&&topRepo.stars>=50) badges.push({label:'★ TOP: '+topRepo.repo.split('/')[1],color:'#ffd700'});
   bEl.innerHTML=badges.map(b=>`<span class="dp-badge" style="background:${b.color}22;color:${b.color};border:1px solid ${b.color}44">${b.label}</span>`).join('');
 
-  // Top repos list (sorted by stars, top 10)
-  const sorted=[...lRepos].sort((a,b)=>b.stars-a.stars).slice(0,10);
+  // All repos list (sorted by stars)
+  const sorted=[...lRepos].sort((a,b)=>b.stars-a.stars);
   const listEl=document.getElementById('sundp-list');
-  listEl.innerHTML=sorted.map(r=>`<div class="sundp-repo"><span class="sundp-repo-n">${r.repo.split('/')[1]}</span><span class="sundp-repo-s">★ ${r.stars}</span></div>`).join('');
+  listEl.innerHTML=sorted.map(r=>`<div class="sundp-repo" data-repo="${r.repo}"><span class="sundp-repo-n" title="${r.repo}">${r.repo.split('/')[1]}</span><span class="sundp-repo-s">★ ${r.stars}</span></div>`).join('');
+  listEl.onclick=e=>{
+    const item=e.target.closest('.sundp-repo'); if(!item) return;
+    goToRepo(item.dataset.repo);
+  };
 
   sundpEl.classList.add('open');
 }
